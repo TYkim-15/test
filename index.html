@@ -54,8 +54,8 @@
             CROSS-CHECK ENGINE
           </span>
         </div>
-        <button onclick="downloadSelfApp()" class="md:hidden bg-slate-800 border border-slate-600 text-slate-300 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:text-white transition-all">
-          <i class="fa-solid fa-download"></i> 다운로드
+        <button onclick="downloadStrategyGuideMd()" class="md:hidden bg-slate-800 border border-slate-600 text-cyan-300 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:text-white transition-all flex items-center gap-1">
+          <i class="fa-solid fa-file-arrow-down text-cyan-400"></i> 전략 MD
         </button>
       </div>
       
@@ -64,8 +64,8 @@
           <i class="fa-solid fa-circle-notch text-slate-400" id="syncIcon"></i>
           <span id="marketSyncStatusText" class="text-slate-300 font-mono text-[11px] truncate">대기 중...</span>
         </div>
-        <button onclick="downloadSelfApp()" class="hidden md:flex items-center gap-1.5 bg-gradient-to-r from-cyan-700 to-blue-700 hover:from-cyan-600 hover:to-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-lg transition-all">
-          <i class="fa-solid fa-floppy-disk"></i> 파일 다운로드
+        <button onclick="downloadStrategyGuideMd()" class="hidden md:flex items-center gap-1.5 bg-gradient-to-r from-cyan-700 to-blue-700 hover:from-cyan-600 hover:to-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-lg transition-all">
+          <i class="fa-solid fa-file-arrow-down"></i> 매매전략 MD 다운로드
         </button>
       </div>
     </div>
@@ -115,6 +115,10 @@
           </div>
           <div class="text-2xl font-bold font-mono text-cyan-300 mt-1" id="kpiCurrentPrice">로딩중...</div>
           <div class="text-xs mt-1 font-bold" id="kpiPriceChange">-</div>
+          <div class="text-[10px] text-slate-500 font-mono mt-1.5 flex items-center gap-1 border-t border-slate-800/80 pt-1" id="kpiFetchTimeBox">
+            <i class="fa-regular fa-clock text-[9px] text-cyan-400"></i>
+            <span id="kpiFetchTime">조회시각: 대기 중</span>
+          </div>
         </div>
         <div class="bg-darkCard border border-terminalBorder rounded-xl p-4">
           <div class="text-[11px] text-slate-400 flex justify-between"><span>1회 허용 손실 (1R, 1.5%)</span> <i class="fa-solid fa-shield-halved text-rose-400"></i></div>
@@ -170,22 +174,64 @@
 
       </div>
 
-      <!-- Dual Engine Planner -->
+      <!-- Triple Engine Planner -->
       <div class="lg:col-span-4 bg-darkPanel border border-terminalBorder rounded-2xl p-4 flex flex-col space-y-4">
         <div class="border-b border-terminalBorder pb-2">
           <h2 class="text-sm font-bold text-white flex items-center gap-2">
-            <i class="fa-solid fa-microchip text-amber-400"></i> A/B 플랜 듀얼 엔진
+            <i class="fa-solid fa-microchip text-amber-400"></i> A/B/C 플랜 퀀트 엔진
           </h2>
           <p class="text-[10px] text-slate-400 mt-1">ATR 기반 종목 맞춤형 동적 타점 산출기</p>
         </div>
 
-        <div class="grid grid-cols-2 gap-2 p-1 bg-slate-900 rounded-lg border border-slate-800">
+        <div class="grid grid-cols-3 gap-1.5 p-1 bg-slate-900 rounded-lg border border-slate-800">
           <button id="btnPlanA" onclick="selectPlan('A')" class="py-2 rounded text-xs font-bold transition-all bg-cyan-900/40 text-cyan-300 border border-cyan-700/50 shadow-[0_0_10px_rgba(0,242,254,0.1)]">
-            Plan A. Pullback<br><span class="text-[9px] font-normal opacity-80">(지지선 선진입형)</span>
+            Plan A<br><span class="text-[9px] font-normal opacity-80">(선진입)</span>
           </button>
-          <button id="btnPlanB" onclick="selectPlan('B')" class="py-2 rounded text-xs font-bold transition-all text-slate-400 hover:text-slate-200">
-            Plan B. Breakout<br><span class="text-[9px] font-normal opacity-80">(상방돌파 확인형)</span>
+          <button id="btnPlanB" onclick="selectPlan('B')" class="py-2 rounded text-xs font-bold transition-all text-slate-400 hover:text-slate-200 border border-transparent">
+            Plan B<br><span class="text-[9px] font-normal opacity-80">(돌파형)</span>
           </button>
+          <button id="btnPlanC" onclick="selectPlan('C')" class="py-2 rounded text-xs font-bold transition-all text-slate-400 hover:text-slate-200 border border-transparent">
+            Plan C<br><span class="text-[9px] font-normal opacity-80">(가중치)</span>
+          </button>
+        </div>
+
+        <!-- Plan C Dynamic Quant Parameter Controller -->
+        <div id="planCParams" class="bg-[#070b13] border border-cyan-900/50 rounded-xl p-3 space-y-2 hidden">
+          <div class="flex items-center justify-between text-[11px] font-bold text-cyan-300 border-b border-slate-800 pb-1">
+            <span class="flex items-center gap-1.5"><i class="fa-solid fa-sliders text-cyan-400 text-xs"></i> Plan C 가중치 파라메터</span>
+            <button onclick="resetPlanCParams()" class="text-[9px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded border border-slate-700">초기화</button>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-2 text-[10px]">
+            <div>
+              <div class="flex justify-between text-slate-400 mb-0.5">
+                <span>진입 오프셋:</span>
+                <span class="font-mono text-cyan-300 font-bold" id="lblParamEntry">+0.00x</span>
+              </div>
+              <input type="range" id="paramEntry" min="-1.0" max="1.0" step="0.05" value="0.0" oninput="onParamChange()" class="w-full accent-cyan-400 h-1 bg-slate-800 rounded cursor-pointer">
+            </div>
+            <div>
+              <div class="flex justify-between text-slate-400 mb-0.5">
+                <span>손절 배수:</span>
+                <span class="font-mono text-rose-300 font-bold" id="lblParamStop">1.00x</span>
+              </div>
+              <input type="range" id="paramStop" min="0.3" max="3.0" step="0.05" value="1.0" oninput="onParamChange()" class="w-full accent-rose-400 h-1 bg-slate-800 rounded cursor-pointer">
+            </div>
+            <div>
+              <div class="flex justify-between text-slate-400 mb-0.5">
+                <span>1차 익절:</span>
+                <span class="font-mono text-emerald-300 font-bold" id="lblParamTP1">1.50x</span>
+              </div>
+              <input type="range" id="paramTP1" min="0.5" max="4.0" step="0.05" value="1.5" oninput="onParamChange()" class="w-full accent-emerald-400 h-1 bg-slate-800 rounded cursor-pointer">
+            </div>
+            <div>
+              <div class="flex justify-between text-slate-400 mb-0.5">
+                <span>2차 익절:</span>
+                <span class="font-mono text-emerald-300 font-bold" id="lblParamTP2">3.00x</span>
+              </div>
+              <input type="range" id="paramTP2" min="1.0" max="6.0" step="0.1" value="3.0" oninput="onParamChange()" class="w-full accent-emerald-400 h-1 bg-slate-800 rounded cursor-pointer">
+            </div>
+          </div>
         </div>
 
         <div class="bg-[#0a0f18] border border-slate-800 rounded-xl p-4 flex-1 flex flex-col justify-between space-y-3 relative overflow-hidden">
@@ -280,9 +326,10 @@
     const MAX_RISK = (CONST_CAPITAL * CONST_RISK_PCT) / 100;
 
     let currentTicker = 'SNDK';
-    let currentData = { price: 0, change: 0, changePct: 0, atr: 0, ma20: 0, history: [] };
+    let currentData = { price: 0, change: 0, changePct: 0, atr: 0, ma20: 0, history: [], sourceUpdatedAt: null, tradedAt: null };
     let selectedPlan = 'A'; 
     let calculatedPlanData = {};
+    let planCWeights = { entryAtr: 0.0, stopAtr: 1.0, tp1Atr: 1.5, tp2Atr: 3.0 };
     const PRESETS = ['SNDK', 'TQQQ', 'SOXL', 'NVDA', 'TSLA', 'AAPL', 'QQQ'];
 
     // V4.5: Browser -> same-origin Netlify Function -> Naver/Google/Yahoo
@@ -290,6 +337,20 @@
     const API_QUOTE = '/api/quote';
 
     function fmtUSD(val) { return `$${Number(val).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`; }
+
+    function formatFetchTime(isoStr, originTraded) {
+      if (!isoStr) return '조회: 대기 중';
+      try {
+        const d = new Date(isoStr);
+        const pad = n => String(n).padStart(2, '0');
+        const timeStr = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        const origin = originTraded ? ` (원천: ${String(originTraded).slice(5, 16)})` : '';
+        return `수신: ${dateStr} ${timeStr}${origin}`;
+      } catch(e) {
+        return `수신: ${String(isoStr).slice(11, 19)}`;
+      }
+    }
 
     function initPresets() {
       const box = document.getElementById('stockPresetButtons');
@@ -475,8 +536,14 @@
           ? Number(q.changePct)
           : (currentData.change / prevPrice) * 100;
         currentData.tradeAllowed = crossPass;
-        currentData.sourceUpdatedAt = data.fetchedAt || null;
+        currentData.sourceUpdatedAt = data.fetchedAt || new Date().toISOString();
         currentData.quoteDate = q.quoteDate || null;
+        currentData.tradedAt = q.tradedAt || null;
+
+        const timeEl = document.getElementById('kpiFetchTime');
+        if (timeEl) {
+          timeEl.textContent = formatFetchTime(currentData.sourceUpdatedAt, currentData.tradedAt);
+        }
 
         if (Array.isArray(q.history) && q.history.length >= 20) {
           currentData.history = q.history;
@@ -501,6 +568,10 @@
       chgEl.textContent = `${currentData.change >= 0 ? '▲' : '▼'} ${fmtUSD(Math.abs(currentData.change))} (${Math.abs(currentData.changePct).toFixed(2)}%)`;
       chgEl.className = `text-xs mt-1 font-bold ${currentData.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
       document.getElementById('kpiIndicators').innerHTML = `<span class="text-amber-300">ATR/MA20: 실제 OHLC 부족으로 계산 불가</span>`;
+      const timeEl = document.getElementById('kpiFetchTime');
+      if (timeEl) {
+        timeEl.textContent = formatFetchTime(currentData.sourceUpdatedAt, currentData.tradedAt);
+      }
     }
 
     function processQuantData() {
@@ -527,13 +598,46 @@
       calculateDualEngine();
     }
 
+    function onParamChange() {
+      const e = parseFloat(document.getElementById('paramEntry')?.value || 0);
+      const s = parseFloat(document.getElementById('paramStop')?.value || 1.0);
+      const t1 = parseFloat(document.getElementById('paramTP1')?.value || 1.5);
+      const t2 = parseFloat(document.getElementById('paramTP2')?.value || 3.0);
+      planCWeights = { entryAtr: e, stopAtr: s, tp1Atr: t1, tp2Atr: t2 };
+
+      const elE = document.getElementById('lblParamEntry');
+      const elS = document.getElementById('lblParamStop');
+      const elT1 = document.getElementById('lblParamTP1');
+      const elT2 = document.getElementById('lblParamTP2');
+      if (elE) elE.textContent = `${e >= 0 ? '+' : ''}${e.toFixed(2)}x`;
+      if (elS) elS.textContent = `${s.toFixed(2)}x`;
+      if (elT1) elT1.textContent = `${t1.toFixed(2)}x`;
+      if (elT2) elT2.textContent = `${t2.toFixed(2)}x`;
+
+      calculateDualEngine();
+    }
+
+    function resetPlanCParams() {
+      const elE = document.getElementById('paramEntry');
+      const elS = document.getElementById('paramStop');
+      const elT1 = document.getElementById('paramTP1');
+      const elT2 = document.getElementById('paramTP2');
+      if (elE) elE.value = 0.0;
+      if (elS) elS.value = 1.0;
+      if (elT1) elT1.value = 1.5;
+      if (elT2) elT2.value = 3.0;
+      onParamChange();
+      showToast('Plan C 가중치 파라메터가 초기화되었습니다.', 'success');
+    }
+
     function calculateDualEngine() {
       const p = currentData.price;
       const atr = currentData.atr;
       if (!currentData.tradeAllowed || !atr || atr <= 0) {
         calculatedPlanData = {
           A: { entry: p || 0, stop: p || 0, tp1: p || 0, tp2: p || 0, name: '교차검증 미통과 — 주문 차단' },
-          B: { entry: p || 0, stop: p || 0, tp1: p || 0, tp2: p || 0, name: '교차검증 미통과 — 주문 차단' }
+          B: { entry: p || 0, stop: p || 0, tp1: p || 0, tp2: p || 0, name: '교차검증 미통과 — 주문 차단' },
+          C: { entry: p || 0, stop: p || 0, tp1: p || 0, tp2: p || 0, name: '교차검증 미통과 — 주문 차단' }
         };
         updatePlanUI();
         addDebugLog('ENGINE', '교차검증 PASS + 실제 ATR 조건 미충족 → 주문계산 비활성');
@@ -543,13 +647,21 @@
       const aStop = Math.floor((aEntry - atr * 0.8) * 100) / 100;
       const aTP1 = Math.floor((aEntry + atr * 1.5) * 100) / 100;
       const aTP2 = Math.floor((aEntry + atr * 3.0) * 100) / 100;
+
       const bEntry = Math.floor((p + atr * 0.5) * 100) / 100;
       const bStop = Math.floor((bEntry - atr * 1.0) * 100) / 100;
       const bTP1 = Math.floor((bEntry + atr * 2.0) * 100) / 100;
       const bTP2 = Math.floor((bEntry + atr * 4.0) * 100) / 100;
+
+      const cEntry = Math.floor((p + atr * planCWeights.entryAtr) * 100) / 100;
+      const cStop = Math.floor((cEntry - atr * planCWeights.stopAtr) * 100) / 100;
+      const cTP1 = Math.floor((cEntry + atr * planCWeights.tp1Atr) * 100) / 100;
+      const cTP2 = Math.floor((cEntry + atr * planCWeights.tp2Atr) * 100) / 100;
+
       calculatedPlanData = {
         A: { entry: aEntry, stop: aStop, tp1: aTP1, tp2: aTP2, name: 'Volatility Squeeze Pullback' },
-        B: { entry: bEntry, stop: bStop, tp1: bTP1, tp2: bTP2, name: 'Squeeze Breakout' }
+        B: { entry: bEntry, stop: bStop, tp1: bTP1, tp2: bTP2, name: 'Squeeze Breakout' },
+        C: { entry: cEntry, stop: cStop, tp1: cTP1, tp2: cTP2, name: `Custom Dynamic Quant (E:${planCWeights.entryAtr >= 0 ? '+' : ''}${planCWeights.entryAtr}x, S:${planCWeights.stopAtr}x)` }
       };
       updatePlanUI();
     }
@@ -558,13 +670,24 @@
       selectedPlan = plan;
       const btnA = document.getElementById('btnPlanA');
       const btnB = document.getElementById('btnPlanB');
-      
-      if(plan === 'A') {
-        btnA.className = 'py-2 rounded text-xs font-bold transition-all bg-cyan-900/40 text-cyan-300 border border-cyan-700/50 shadow-[0_0_10px_rgba(0,242,254,0.1)]';
-        btnB.className = 'py-2 rounded text-xs font-bold transition-all text-slate-400 hover:text-slate-200 border border-transparent';
-      } else {
-        btnB.className = 'py-2 rounded text-xs font-bold transition-all bg-amber-900/40 text-amber-300 border border-amber-700/50 shadow-[0_0_10px_rgba(245,158,11,0.1)]';
-        btnA.className = 'py-2 rounded text-xs font-bold transition-all text-slate-400 hover:text-slate-200 border border-transparent';
+      const btnC = document.getElementById('btnPlanC');
+      const paramBox = document.getElementById('planCParams');
+
+      const activeA = 'py-2 rounded text-xs font-bold transition-all bg-cyan-900/40 text-cyan-300 border border-cyan-700/50 shadow-[0_0_10px_rgba(0,242,254,0.1)]';
+      const activeB = 'py-2 rounded text-xs font-bold transition-all bg-amber-900/40 text-amber-300 border border-amber-700/50 shadow-[0_0_10px_rgba(245,158,11,0.1)]';
+      const activeC = 'py-2 rounded text-xs font-bold transition-all bg-purple-900/40 text-purple-300 border border-purple-700/50 shadow-[0_0_10px_rgba(168,85,247,0.15)]';
+      const inactive = 'py-2 rounded text-xs font-bold transition-all text-slate-400 hover:text-slate-200 border border-transparent';
+
+      if (btnA) btnA.className = plan === 'A' ? activeA : inactive;
+      if (btnB) btnB.className = plan === 'B' ? activeB : inactive;
+      if (btnC) btnC.className = plan === 'C' ? activeC : inactive;
+
+      if (paramBox) {
+        if (plan === 'C') {
+          paramBox.classList.remove('hidden');
+        } else {
+          paramBox.classList.add('hidden');
+        }
       }
       updatePlanUI();
     }
@@ -720,23 +843,123 @@
       setTimeout(() => b.classList.add('-translate-y-20', 'opacity-0'), 4000);
     }
 
-    function downloadSelfApp() {
+    function downloadStrategyGuideMd() {
       try {
-        const htmlContent = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
-        const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
+        const tk = currentTicker;
+        const p = currentData.price || 0;
+        const atr = currentData.atr || 0;
+        const ma = currentData.ma20 || 0;
+        const time = currentData.sourceUpdatedAt || new Date().toISOString();
+        const planA = calculatedPlanData.A || {};
+        const planB = calculatedPlanData.B || {};
+        const planC = calculatedPlanData.C || {};
+        const curPlan = calculatedPlanData[selectedPlan] || planA;
+        const nowKst = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+        const dateStr = new Date().toISOString().slice(0, 10);
+
+        const chgSign = currentData.change >= 0 ? '+' : '';
+        const chgStr = `${chgSign}${fmtUSD(currentData.change || 0)} (${(currentData.changePct || 0).toFixed(2)}%)`;
+
+        const mdContent = `# [AlphaPilot Pro v4.5.2] 퀀트 매매전략 보고서 및 알고리즘 가이드
+
+- **대상 종목**: ${tk} (NASDAQ)
+- **작성 일시**: ${nowKst} (KST)
+- **서버 수신 시각**: ${time}
+- **교차검증 상태**: ${currentData.tradeAllowed ? 'PASS (정상 승인 완료)' : 'WARNING / 차단 (미검증 상태)'}
+- **현재 선택 전략**: Plan ${selectedPlan} (${curPlan.name || '미설정'})
+
+---
+
+## 1. 현재 시세 및 기술적 지표 진단
+
+| 항목 | 수치 | 비고 |
+| :--- | :--- | :--- |
+| **현재가 (Last Price)** | ${fmtUSD(p)} | Naver + Google 교차검증 |
+| **전일 대비 변동** | ${chgStr} | 전일 종가 대비 |
+| **변동성 지표 ATR(14)** | ${fmtUSD(atr)} | 14일 Wilder Average True Range |
+| **추세 기준선 MA(20)** | ${fmtUSD(ma)} | 20일 단순 이동평균선 (SMA) |
+| **추세 판정** | ${p >= ma ? 'MA20 상방 (단기 상승 추세 우위)' : 'MA20 하방 (눌림목/단기 조정권)'} | 20일선 기준 |
+
+---
+
+## 2. A / B / C 트리플 퀀트 타점 명세표
+
+| 전략 구분 | 진입가 (Entry) | 손절가 (Stop) | 1차 익절 (TP1) | 2차 익절 (TP2) | 단위 위험 (1R) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Plan A (Pullback)** | ${fmtUSD(planA.entry || 0)} | ${fmtUSD(planA.stop || 0)} | ${fmtUSD(planA.tp1 || 0)} | ${fmtUSD(planA.tp2 || 0)} | ${fmtUSD(Math.max(0.01, (planA.entry || 0) - (planA.stop || 0)))} |
+| **Plan B (Breakout)** | ${fmtUSD(planB.entry || 0)} | ${fmtUSD(planB.stop || 0)} | ${fmtUSD(planB.tp1 || 0)} | ${fmtUSD(planB.tp2 || 0)} | ${fmtUSD(Math.max(0.01, (planB.entry || 0) - (planB.stop || 0)))} |
+| **Plan C (Custom Quant)** | ${fmtUSD(planC.entry || 0)} | ${fmtUSD(planC.stop || 0)} | ${fmtUSD(planC.tp1 || 0)} | ${fmtUSD(planC.tp2 || 0)} | ${fmtUSD(Math.max(0.01, (planC.entry || 0) - (planC.stop || 0)))} |
+
+> **Plan C 적용 파라메터**: 진입 \`${planCWeights.entryAtr >= 0 ? '+' : ''}${planCWeights.entryAtr}x ATR\`, 손절 \`${planCWeights.stopAtr}x ATR\`, 1차 익절 \`${planCWeights.tp1Atr}x ATR\`, 2차 익절 \`${planCWeights.tp2Atr}x ATR\`
+
+---
+
+## 3. Meritz Super365 1R 리스크 관리 수칙 & 매매 조언
+
+### ① 1R 고정 리스크 원칙 (총자산 1.5% 한도)
+* **총 운용자산**: $44,021.71 기준 1회 최대 허용 손실: **$660.33 (1R)**
+* **매수 수량(Shares) 공식**:
+  $$\\text{Shares} = \\text{Floor}\\left( \\frac{\\text{Max Risk (\\$660.33)}}{\\text{Entry} - \\text{Stop}} \\right)$$
+* 어떤 상황에서도 1회 손절 시 계좌 총자산의 1.5%를 초과하는 손실을 절대 허용하지 않습니다.
+
+### ② 2단계 분할 익절 & 본절 트레일링 스탑 (Break-Even)
+1. **1차 목표가(TP1) 도달 시**: 보유 물량의 **50%를 확정 분할 매도**하여 확정 수익을 챙깁니다.
+2. **손절선 본절 상향 조정**: 1차 매도 체결 즉시, 남은 50% 물량의 스탑로스 가격을 **최초 진입가(Entry)**로 즉시 상향 등록합니다. 이를 통해 해당 거래는 최악의 경우에도 '무손실(Zero-Risk)'로 완결됩니다.
+3. **2차 목표가(TP2) 도달 시**: 잔여 50% 물량을 전량 매도하여 추세 이익을 극대화합니다.
+
+### ③ 감시 주문(Stop Order) 실무 발주 팁
+* 진입 주문 체결 알림을 받는 즉시 MTS/HTS의 **[자동감시주문]** 메뉴에서 시장가 손절 감시를 등록하십시오.
+* 급격한 변동성 발생 시 지정가 손절은 주문 체결 없이 가격이 건너뛸 위험(Slippage Gap)이 있으므로, 손절은 반드시 **조건만족 시 시장가 매도**로 설정하는 것이 안전합니다.
+
+---
+
+## 4. 퀀트 알고리즘 수식 정의 (Technical Architecture)
+
+### 1) 서버측 시세 교차검증 (Dual-Source Cross-Check)
+$$\\text{Diff (\\%)} = \\frac{|\\text{Price}_{\\text{Naver}} - \\text{Price}_{\\text{Google}}|}{\\text{Price}_{\\text{Naver}}} \\times 100$$
+* $\\text{Diff} < 1.00\\%$ 일 때만 \`PASS\` 상태로 매매 계산을 허용하며, $1.00\\%$ 이상이거나 미검증 시 주문을 차단합니다.
+
+### 2) 변동성 채널 지표: ATR(14)
+$$\\text{TR} = \\max\\left(H - L,\\ |H - C_{\\text{prev}}|,\\ |L - C_{\\text{prev}}|\\right)$$
+$$\\text{ATR}(14) = \\frac{1}{14}\\sum_{i=1}^{14} \\text{TR}_i$$
+
+### 3) 플랜별 퀀트 타점 산출 모델
+* **Plan A (Pullback 눌림목 선진입형)**:
+  * 진입(Entry) = $P \\times 0.998$
+  * 손절(Stop) = $\\text{Entry} - 0.8 \\times \\text{ATR}$
+  * 1차 익절(TP1) = $\\text{Entry} + 1.5 \\times \\text{ATR}$
+  * 2차 익절(TP2) = $\\text{Entry} + 3.0 \\times \\text{ATR}$
+* **Plan B (Breakout 상방돌파 확인형)**:
+  * 진입(Entry) = $P + 0.5 \\times \\text{ATR}$
+  * 손절(Stop) = $\\text{Entry} - 1.0 \\times \\text{ATR}$
+  * 1차 익절(TP1) = $\\text{Entry} + 2.0 \\times \\text{ATR}$
+  * 2차 익절(TP2) = $\\text{Entry} + 4.0 \\times \\text{ATR}$
+* **Plan C (Custom Dynamic 가중치형)**:
+  * 진입(Entry) = $P + \\alpha \\times \\text{ATR}$ (현재: ${planCWeights.entryAtr >= 0 ? '+' : ''}${planCWeights.entryAtr}x)
+  * 손절(Stop) = $\\text{Entry} - \\beta \\times \\text{ATR}$ (현재: ${planCWeights.stopAtr}x)
+  * 1차 익절(TP1) = $\\text{Entry} + \\gamma \\times \\text{ATR}$ (현재: ${planCWeights.tp1Atr}x)
+  * 2차 익절(TP2) = $\\text{Entry} + \\delta \\times \\text{ATR}$ (현재: ${planCWeights.tp2Atr}x)
+
+---
+*본 문서는 AlphaPilot Pro v4.5.2 퀀트 시스템에서 자동 생성된 매매 가이드라인입니다.*
+`;
+
+        const blob = new Blob([mdContent], { type: "text/markdown;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `AlphaPilot_Pro_v4.5_CrossCheck.html`;
+        a.download = `AlphaPilot_Quant_Strategy_${tk}_${dateStr}.md`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        showToast('웹앱 파일이 기기에 다운로드 되었습니다.', 'success');
+        showToast(`[${tk}] 매매전략 MD 보고서가 다운로드되었습니다.`, 'success');
       } catch(e) {
-        showToast('다운로드 기능이 지원되지 않는 환경입니다.', 'error');
+        showToast('MD 다운로드 처리 중 오류가 발생했습니다.', 'error');
       }
     }
+
+    const downloadSelfApp = downloadStrategyGuideMd;
 
     window.addEventListener('DOMContentLoaded', () => {
       try {
