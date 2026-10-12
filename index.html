@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AlphaPilot Pro v4.5.1 - Server Cross-Check Quant Engine</title>
+  <title>AlphaPilot Pro v4.5.2 - Server Cross-Check Quant Engine</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -48,7 +48,7 @@
         <div class="flex items-center gap-2">
           <i class="fa-solid fa-layer-group text-cyanNeon text-lg"></i>
           <span class="font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyanNeon to-blue-400 text-lg tracking-wider">
-            AlphaPilot Pro v4.5.1
+            AlphaPilot Pro v4.5.2
           </span>
           <span class="bg-cyan-950/80 text-cyan-300 border border-cyan-700/60 px-2 py-0.5 rounded text-[10px] font-bold">
             CROSS-CHECK ENGINE
@@ -154,7 +154,7 @@
         <div id="debugPanel" class="absolute inset-0 bg-[#05080f]/95 backdrop-blur-sm z-20 hidden flex-col p-6 rounded-2xl border border-amber-900/50 mt-12 mx-4 mb-4">
           <div class="flex items-center gap-2 text-amber-500 font-bold mb-4 border-b border-amber-900/50 pb-2">
             <i class="fa-solid fa-terminal text-lg"></i>
-            <span>시스템 통신 및 예외 처리 로그 (V4.5)</span>
+            <span>시스템 통신 및 예외 처리 로그 (V4.5.2)</span>
           </div>
           <p class="text-[11px] text-slate-300 mb-3 leading-relaxed">
             API 연동 중 통신 차단 혹은 데이터 파싱 오류가 감지되었습니다. Netlify Function 서버측 교차 검증 로그를 확인하십시오. 통신이 완전히 차단된 경우 수동 호가 입력 인터페이스가 활성화됩니다.
@@ -322,10 +322,58 @@
       }
     }
 
+    function setUiLoadingState(isLoading, msg) {
+      try {
+        const overlay = document.getElementById('metricOverlay');
+        const text = document.getElementById('metricOverlayText');
+        if (!overlay) return;
+        if (isLoading) {
+          overlay.classList.remove('hidden');
+          overlay.classList.add('flex');
+          if (text && msg) text.innerHTML = String(msg).replace(/\n/g, '<br>');
+        } else {
+          overlay.classList.add('hidden');
+          overlay.classList.remove('flex');
+        }
+      } catch (e) {
+        console.error('setUiLoadingState error:', e);
+      }
+    }
+
+    function promptManualPrice() {
+      try {
+        const defaultVal = (currentData && currentData.price > 0) ? currentData.price : '';
+        const input = prompt(`[${currentTicker}] 수동 현재가를 입력하세요 (USD):`, defaultVal);
+        if (!input) return;
+        const price = parseFloat(input);
+        if (isNaN(price) || price <= 0) {
+          showToast('유효한 가격을 입력하세요.', 'error');
+          return;
+        }
+        currentData.price = price;
+        currentData.tradeAllowed = true;
+        hideDebugPanel();
+        updatePriceOnlyUI();
+        if (Array.isArray(currentData.history) && currentData.history.length >= 20) {
+          processQuantData();
+        } else {
+          currentData.atr = Math.round(price * 0.03 * 100) / 100;
+          currentData.ma20 = price;
+          calculateDualEngine();
+        }
+        showToast(`수동 호가 $${price.toFixed(2)} 적용 완료`, 'success');
+      } catch (e) {
+        showToast('수동 호가 처리 중 오류 발생', 'error');
+      }
+    }
+
     function triggerFatalError(err) {
       addDebugLog('SYSTEM FATAL', err);
-      document.getElementById('debugPanel').classList.remove('hidden');
-      document.getElementById('debugPanel').classList.add('flex');
+      const panel = document.getElementById('debugPanel');
+      if (panel) {
+        panel.classList.remove('hidden');
+        panel.classList.add('flex');
+      }
       const syncIcon = document.getElementById('syncIcon');
       const syncText = document.getElementById('marketSyncStatusText');
       if(syncIcon) syncIcon.className = 'fa-solid fa-triangle-exclamation text-amber-500 flash-warn';
@@ -333,12 +381,15 @@
         syncText.className = 'text-amber-500 font-mono text-[11px] font-bold flash-warn';
         syncText.textContent = `통신 실패 (서버측 데이터 확인 필요)`;
       }
-      setUiLoadingState(false, '통신 오류');
+      try { setUiLoadingState(false, '통신 오류'); } catch(e) {}
     }
 
     function hideDebugPanel() {
-        document.getElementById('debugPanel').classList.add('hidden');
-        document.getElementById('debugPanel').classList.remove('flex');
+      const panel = document.getElementById('debugPanel');
+      if (panel) {
+        panel.classList.add('hidden');
+        panel.classList.remove('flex');
+      }
     }
 
     function checkMarketStatusSafe() {
