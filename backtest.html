@@ -877,12 +877,14 @@
         suitEl.className = 'font-bold font-mono text-rose-400';
       const btnApplyEl = document.getElementById('btnApplyPlanHighText');
       if (btnApplyEl) {
-        btnApplyEl.textContent = `★ 검증된 ${res.winRate}% 승률로 [PLAN_High] 실전 반영 (NEW.html)`;
+        btnApplyEl.textContent = `★ [${currentTicker}] 검증된 ${res.winRate}% 승률로 실전 반영 (NEW.html)`;
       }
 
       drawEquityCurve(res.equityCurve);
       renderTradeLogTable(res.trades);
     }
+
+    const STORAGE_KEY_PLAN_HIGH = 'ALPHAPILOT_PLAN_HIGH_STORE';
 
     function applyToNewPlanHigh() {
       const res = backtestResults[selectedDetailPlan] || backtestResults.C || {};
@@ -900,7 +902,26 @@
         e = 0.5; s = 1.0; tp1 = 2.0; tp2 = 4.0;
       }
 
-      const url = `new.html?symbol=${encodeURIComponent(currentTicker)}&plan=PLAN_High&winRate=${winRate}&entry=${e}&stop=${s}&tp1=${tp1}&tp2=${tp2}`;
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const itemId = `${currentTicker}_${Number(winRate).toFixed(1)}%_${dateStr}`;
+
+      try {
+        let store = JSON.parse(localStorage.getItem(STORAGE_KEY_PLAN_HIGH) || '[]');
+        store = store.filter(item => item.id !== itemId);
+        store.unshift({
+          id: itemId,
+          itemLabel: itemId,
+          symbol: currentTicker,
+          winRate: winRate,
+          date: dateStr,
+          weights: { entryAtr: e, stopAtr: s, tp1Atr: tp1, tp2Atr: tp2 }
+        });
+        localStorage.setItem(STORAGE_KEY_PLAN_HIGH, JSON.stringify(store));
+      } catch (err) {
+        console.error('Storage save error:', err);
+      }
+
+      const url = `new.html?symbol=${encodeURIComponent(currentTicker)}&plan=PLAN_High&winRate=${winRate}&entry=${e}&stop=${s}&tp1=${tp1}&tp2=${tp2}&activeId=${encodeURIComponent(itemId)}`;
       window.location.href = url;
     }
 

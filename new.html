@@ -96,27 +96,49 @@
   <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
 
     <!-- Top Notice Banner for PLAN_High -->
-    <div id="planHighBanner" class="bg-gradient-to-r from-amber-950/60 via-slate-900 to-emerald-950/60 border border-amber-500/40 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-lg">
+    <div id="planHighBanner" class="bg-gradient-to-r from-amber-950/70 via-slate-900 to-emerald-950/70 border border-amber-500/50 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-lg">
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 text-lg flex-shrink-0">
-          <i class="fa-solid fa-award"></i>
+        <div class="w-11 h-11 rounded-xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-amber-400 text-xl flex-shrink-0">
+          <i class="fa-solid fa-crown text-goldHigh"></i>
         </div>
         <div>
-          <h2 class="text-xs font-bold text-amber-300 flex items-center gap-2">
-            <span>최근 1달 백테스트 최고승률 검증 모델 (PLAN_High) 적용 모드</span>
-            <span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded text-[10px] font-mono font-bold" id="bannerWinRateText">승률 85.7% 검증</span>
-          </h2>
-          <p class="text-[11px] text-slate-300 mt-0.5" id="bannerWeightText">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-sm font-extrabold text-amber-300 font-mono tracking-wide" id="bannerTickerTitle">[MU]</span>
+            <span class="text-xs font-bold text-white">최고승률 검증 모델 (PLAN_High) 실전 가동 중</span>
+            <span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 px-2 py-0.5 rounded text-[10px] font-mono font-bold" id="bannerWinRateText">승률 85.7% 검증</span>
+          </div>
+          <p class="text-[11px] text-slate-300 mt-1 font-mono" id="bannerWeightText">
             적용 파라메터: 진입 -0.20x ATR | 손절 1.40x ATR | TP1 0.50x ATR | TP2 6.00x ATR
           </p>
         </div>
       </div>
       <div class="flex items-center gap-2">
-        <a href="backtest.html" class="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap">
+        <a id="btnReBacktest" href="backtest.html?symbol=MU" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shadow-sm">
           <i class="fa-solid fa-sliders text-purple-400"></i> 백테스트 다시 돌리기
         </a>
       </div>
     </div>
+
+    <!-- PLAN_HIGH Saved Presets List Bar -->
+    <section class="bg-darkPanel border border-amber-500/30 rounded-2xl p-3.5 space-y-2.5 shadow-md">
+      <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-list-check text-goldHigh text-xs"></i>
+          <span class="text-xs font-bold text-amber-300">PLAN_HIGH 저장된 고승률 모델 리스트</span>
+          <span class="text-[10px] text-slate-400 font-mono hidden sm:inline">(클릭 시 해당 종목 실시간 시세 + 고승률 파라메터 즉시 적용)</span>
+        </div>
+        <div class="flex items-center gap-2 text-[10px] text-slate-400">
+          <span id="planHighCountText">저장됨: 0개</span>
+          <button onclick="clearPlanHighStore()" class="text-slate-500 hover:text-rose-400 text-[10px] transition-colors" title="전체 삭제">
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        </div>
+      </div>
+      
+      <div class="flex items-center gap-2 overflow-x-auto py-1 scrollbar-thin" id="planHighListBar">
+        <!-- Injected via JavaScript -->
+      </div>
+    </section>
 
     <!-- 1. Tickers & Presets -->
     <section class="bg-darkPanel border border-terminalBorder rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
@@ -904,6 +926,107 @@
       }
     }
 
+    const STORAGE_KEY_PLAN_HIGH = 'ALPHAPILOT_PLAN_HIGH_STORE';
+    let currentActivePlanHighId = null;
+
+    function getPlanHighStore() {
+      try {
+        let list = JSON.parse(localStorage.getItem(STORAGE_KEY_PLAN_HIGH) || '[]');
+        if (!Array.isArray(list) || list.length === 0) {
+          // 기본 샘플 데이터 (MU, CONL)
+          list = [
+            {
+              id: "MU_85.7%_2026-10-12",
+              itemLabel: "MU_85.7%_2026-10-12",
+              symbol: "MU",
+              winRate: 85.7,
+              date: "2026-10-12",
+              weights: { entryAtr: -0.20, stopAtr: 1.40, tp1Atr: 0.50, tp2Atr: 6.00 }
+            },
+            {
+              id: "CONL_85.7%_2026-10-12",
+              itemLabel: "CONL_85.7%_2026-10-12",
+              symbol: "CONL",
+              winRate: 85.7,
+              date: "2026-10-12",
+              weights: { entryAtr: -0.20, stopAtr: 1.40, tp1Atr: 0.50, tp2Atr: 6.00 }
+            }
+          ];
+          localStorage.setItem(STORAGE_KEY_PLAN_HIGH, JSON.stringify(list));
+        }
+        return list;
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function renderPlanHighListBar() {
+      const store = getPlanHighStore();
+      const listBar = document.getElementById('planHighListBar');
+      const countText = document.getElementById('planHighCountText');
+      if (countText) countText.textContent = `저장됨: ${store.length}개`;
+      if (!listBar) return;
+      listBar.innerHTML = '';
+
+      if (store.length === 0) {
+        listBar.innerHTML = `<span class="text-xs text-slate-500 py-1 font-mono">저장된 고승률 모델이 없습니다. 백테스트에서 [실전반영]을 눌러 추가하세요.</span>`;
+        return;
+      }
+
+      store.forEach((item) => {
+        const btn = document.createElement('button');
+        const isCurrent = (item.id === currentActivePlanHighId);
+        btn.className = `px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer shadow-sm ${
+          isCurrent
+            ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 shadow-[0_0_12px_rgba(251,191,36,0.35)] border border-amber-300'
+            : 'bg-slate-900 text-amber-300 border border-amber-600/40 hover:bg-slate-800'
+        }`;
+        btn.innerHTML = `<i class="fa-solid fa-crown text-[11px] ${isCurrent ? 'text-slate-950' : 'text-goldHigh'}"></i> <span>${item.itemLabel}</span>`;
+        btn.onclick = () => selectPlanHighItem(item);
+        listBar.appendChild(btn);
+      });
+    }
+
+    function selectPlanHighItem(item) {
+      currentActivePlanHighId = item.id;
+      planHighWeights = {
+        entryAtr: item.weights.entryAtr,
+        stopAtr: item.weights.stopAtr,
+        tp1Atr: item.weights.tp1Atr,
+        tp2Atr: item.weights.tp2Atr,
+        winRate: item.winRate
+      };
+
+      updateBannerUI(item.symbol);
+      renderPlanHighListBar();
+      selectPlan('PLAN_High');
+      loadTickerData(item.symbol);
+      showToast(`[${item.itemLabel}] 고승률 파라메터가 적용되었습니다.`, 'success');
+    }
+
+    function updateBannerUI(symbol) {
+      const bTitle = document.getElementById('bannerTickerTitle');
+      const bWin = document.getElementById('bannerWinRateText');
+      const bWeight = document.getElementById('bannerWeightText');
+      const bSub = document.getElementById('subtextPlanHigh');
+      const bRe = document.getElementById('btnReBacktest');
+
+      if (bTitle) bTitle.textContent = `[${symbol}]`;
+      if (bWin) bWin.textContent = `승률 ${planHighWeights.winRate}% 검증`;
+      if (bWeight) {
+        bWeight.textContent = `적용 파라메터: 진입 ${planHighWeights.entryAtr >= 0 ? '+' : ''}${planHighWeights.entryAtr}x | 손절 ${planHighWeights.stopAtr}x | TP1 ${planHighWeights.tp1Atr}x | TP2 ${planHighWeights.tp2Atr}x ATR`;
+      }
+      if (bSub) bSub.textContent = `승률 ${planHighWeights.winRate}%`;
+      if (bRe) bRe.href = `backtest.html?symbol=${encodeURIComponent(symbol)}`;
+    }
+
+    function clearPlanHighStore() {
+      if (!confirm('저장된 PLAN_High 모델 목록을 초기화하시겠습니까?')) return;
+      localStorage.removeItem(STORAGE_KEY_PLAN_HIGH);
+      renderPlanHighListBar();
+      showToast('PLAN_High 모델 목록이 초기화되었습니다.', 'success');
+    }
+
     // URL 파라미터 파싱 및 PLAN_High 초기화
     window.addEventListener('DOMContentLoaded', () => {
       const urlParams = new URLSearchParams(window.location.search);
@@ -913,6 +1036,7 @@
       const sParam = urlParams.get('stop');
       const tp1Param = urlParams.get('tp1');
       const tp2Param = urlParams.get('tp2');
+      const activeIdParam = urlParams.get('activeId');
 
       if (winRateParam != null) planHighWeights.winRate = parseFloat(winRateParam);
       if (eParam != null) planHighWeights.entryAtr = parseFloat(eParam);
@@ -920,13 +1044,15 @@
       if (tp1Param != null) planHighWeights.tp1Atr = parseFloat(tp1Param);
       if (tp2Param != null) planHighWeights.tp2Atr = parseFloat(tp2Param);
 
-      // 배너 텍스트 갱신
-      document.getElementById('bannerWinRateText').textContent = `승률 ${planHighWeights.winRate}% 검증`;
-      document.getElementById('bannerWeightText').textContent = 
-        `적용 파라메터: 진입 ${planHighWeights.entryAtr >= 0 ? '+' : ''}${planHighWeights.entryAtr}x | 손절 ${planHighWeights.stopAtr}x | TP1 ${planHighWeights.tp1Atr}x | TP2 ${planHighWeights.tp2Atr}x ATR`;
-      document.getElementById('subtextPlanHigh').textContent = `승률 ${planHighWeights.winRate}%`;
-
       const targetTicker = symbolParam ? symbolParam.toUpperCase() : 'MU';
+      currentActivePlanHighId = activeIdParam || `${targetTicker}_${planHighWeights.winRate.toFixed(1)}%_${new Date().toISOString().slice(0, 10)}`;
+
+      // 배너 텍스트 갱신
+      updateBannerUI(targetTicker);
+
+      // 리스트바 렌더링
+      renderPlanHighListBar();
+
       initPresets();
       selectPlan('PLAN_High');
       loadTickerData(targetTicker);
