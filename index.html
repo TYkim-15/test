@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>나스닥퀀트차트매매v6 - AlphaPilot Pro v6.0</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            meritz: { wine: '#8B0029', dark: '#540018', light: '#BE123C', accent: '#E11D48' },
+            terminal: { bg: '#020617', panel: '#0F172A', card: '#1E293B', border: '#334155', cyan: '#06b6d4', emerald: '#10b981', rose: '#f43f5e', purple: '#8b5cf6' }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #020617; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
+      background: #06b6d4; cursor: pointer; box-shadow: 0 0 10px rgba(6, 182, 212, 0.8);
+    }
+    .neon-cyan { text-shadow: 0 0 8px rgba(6, 182, 212, 0.6); }
+    .neon-rose { text-shadow: 0 0 8px rgba(244, 63, 94, 0.6); }
+    .plan-active { border-color: #06b6d4 !important; background: rgba(6, 182, 212, 0.1) !important; box-shadow: 0 0 15px rgba(6, 182, 212, 0.2); }
+  </style>
+</head>
+
+<body class="bg-terminal-bg text-slate-200 font-sans antialiased min-h-screen selection:bg-terminal-cyan selection:text-white pb-16">
+
+  <header class="border-b border-terminal-border bg-terminal-panel/95 sticky top-0 z-40 backdrop-blur-md">
+    <div class="max-w-[1800px] mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-meritz-wine to-meritz-light flex items-center justify-center font-black text-white text-lg shadow-[0_0_15px_rgba(139,0,41,0.6)]">M</div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-extrabold text-lg tracking-tight text-white">나스닥퀀트차트매매</span>
+            <span class="px-2 py-0.5 rounded bg-terminal-cyan text-black font-mono font-bold text-[11px] shadow-[0_0_10px_rgba(6,182,212,0.6)]">v3.0</span>
+            <span class="text-[11px] text-slate-400 border border-slate-600 rounded px-1.5 py-0.5 hidden sm:block">AlphaPilot Pro Dual-Engine</span>
+          </div>
+          <div class="text-[11px] text-slate-400 font-mono mt-0.5 flex items-center gap-2">
+            <i class="fa-solid fa-user-shield text-terminal-emerald"></i>
+            <span class="text-slate-300 font-semibold">Super365</span>
+            <span>| By DBA Kim.T.Y.</span>
+          </div>
+        </div>
+      </div>
+      <div class="flex items-center gap-4 text-[11px] font-mono">
+        <div class="bg-terminal-card px-3 py-1.5 rounded-lg border border-terminal-border flex items-center gap-2">
+          <span class="text-slate-400">기준일:</span> <span class="text-white font-bold">26.10.09 종가</span>
+          <span class="text-slate-600 mx-1">|</span>
+          <span class="text-slate-400">SNDK:</span> <span class="text-terminal-emerald font-bold">$1,581.82</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1800px] mx-auto px-4 py-6 space-y-6">
+
+    <section class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="bg-terminal-panel border border-terminal-border rounded-xl p-4 shadow-lg">
+        <div class="text-[11px] text-slate-400 flex items-center justify-between mb-1">
+          <span>총 운용 자본 (Total Capital)</span> <i class="fa-solid fa-wallet text-slate-500"></i>
+        </div>
+        <div class="text-2xl font-extrabold text-white font-mono tracking-tight">$44,021.71</div>
+        <div class="text-[11px] text-slate-500 mt-1">포트폴리오 기준 자본</div>
+      </div>
+      <div class="bg-terminal-panel border border-terminal-cyan/50 rounded-xl p-4 shadow-[0_0_15px_rgba(6,182,212,0.1)]">
+        <div class="text-[11px] text-slate-400 flex items-center justify-between mb-1">
+          <span>외화추정예수금 (가용현금)</span> <span class="text-[10px] px-1.5 py-0.5 rounded bg-terminal-cyan/20 text-terminal-cyan border border-terminal-cyan/50">70.38%</span>
+        </div>
+        <div class="text-2xl font-extrabold text-terminal-cyan font-mono tracking-tight neon-cyan">$30,983.55</div>
+        <div class="text-[11px] text-slate-400 mt-1">충분한 분할 매수 버퍼 확보됨</div>
+      </div>
+      <div class="bg-terminal-panel border border-terminal-border rounded-xl p-4 shadow-lg">
+        <div class="text-[11px] text-slate-400 flex items-center justify-between mb-1">
+          <span>1회 최대 허용 손실 (1R Limit)</span> <span class="text-terminal-rose font-bold">1.50%</span>
+        </div>
+        <div class="text-2xl font-extrabold text-terminal-rose font-mono tracking-tight neon-rose" id="kpiMaxRisk">$660.32</div>
+        <div class="text-[11px] text-slate-500 mt-1">리스크 매니지먼트 한도</div>
+      </div>
+      <div class="bg-terminal-panel border border-terminal-border rounded-xl p-4 shadow-lg">
+        <div class="text-[11px] text-slate-400 flex items-center justify-between mb-1">
+          <span>퀀트 지표: ATR(14)</span> <span class="text-amber-400 font-bold">High Volatility</span>
+        </div>
+        <div class="text-2xl font-extrabold text-amber-400 font-mono tracking-tight">$95.10</div>
+        <div class="text-[11px] text-slate-500 mt-1">SNDK 일평균 가격 변동폭</div>
+      </div>
+    </section>
+
+    <section class="bg-terminal-panel border border-terminal-border rounded-xl p-5 shadow-lg">
+      <div class="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-terminal-border pb-4 mb-4">
+        <div>
+          <h2 class="text-base font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-code-branch text-terminal-purple"></i> V3 듀얼 실행 엔진 (Dual-Engine Execution)
+          </h2>
+          <p class="text-[11px] text-slate-400 mt-1">전략 선택 시 모든 파라미터, 1R 수치, 차트 오버레이, 주문표가 실시간으로 재계산됩니다.</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div id="planACard" onclick="togglePlan('A')" class="plan-card cursor-pointer p-4 rounded-xl border border-terminal-border bg-terminal-card hover:border-slate-500 transition-all">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-black px-2 py-1 rounded bg-meritz-wine text-white font-mono shadow-md">PLAN A</span>
+            <span class="text-[10px] text-slate-400">Pullback 지지선 선진입형</span>
+          </div>
+          <div class="text-sm font-bold text-white mb-2">Entry: $1,580.00 <span class="text-xs text-slate-500 font-normal ml-2">현재가 근접 지지 진입</span></div>
+          <div class="flex justify-between text-[11px] font-mono text-slate-400 bg-terminal-bg p-2 rounded border border-terminal-border">
+            <span>Stop: $1,510</span><span>TP1: $1,720</span><span>TP2: $1,860</span>
+          </div>
+        </div>
+        <div id="planBCard" onclick="togglePlan('B')" class="plan-card cursor-pointer p-4 rounded-xl border border-terminal-border bg-terminal-card hover:border-slate-500 transition-all">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-black px-2 py-1 rounded bg-terminal-cyan text-black font-mono shadow-md">PLAN B</span>
+            <span class="text-[10px] text-slate-400">True Squeeze Breakout형</span>
+          </div>
+          <div class="text-sm font-bold text-white mb-2">Entry: $1,638.00 <span class="text-xs text-slate-500 font-normal ml-2">저항선 돌파 시 확인 진입</span></div>
+          <div class="flex justify-between text-[11px] font-mono text-slate-400 bg-terminal-bg p-2 rounded border border-terminal-border">
+            <span>Stop: $1,570</span><span>TP1: $1,740</span><span>TP2: $1,880</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <!-- HTML5 Canvas Chart Engine -->
+      <div class="lg:col-span-8 bg-terminal-panel border border-terminal-border rounded-xl p-4 flex flex-col space-y-3">
+        <div class="flex items-center justify-between border-b border-terminal-border pb-3">
+          <div class="flex items-center gap-3">
+            <span class="font-bold text-white text-lg font-mono">SNDK <span class="text-xs text-slate-400 font-sans font-normal ml-1">샌디스크</span></span>
+            <span class="text-xs px-2 py-0.5 rounded font-mono font-bold bg-blue-900/50 text-blue-400 border border-blue-700/50">$1,581.82 (-1.72%)</span>
+          </div>
+          <div class="text-[11px] font-mono text-slate-400 flex gap-3">
+            <span><i class="fa-solid fa-square text-terminal-cyan"></i> 진입</span>
+            <span><i class="fa-solid fa-square text-terminal-rose"></i> 손절</span>
+            <span><i class="fa-solid fa-square text-terminal-emerald"></i> 익절</span>
+          </div>
+        </div>
+        <div class="relative w-full h-[450px] bg-terminal-bg rounded-lg overflow-hidden border border-slate-800">
+          <canvas id="v3ChartCanvas" class="w-full h-full block cursor-crosshair"></canvas>
+          <div class="absolute bottom-2 left-2 text-[10px] text-slate-500 bg-slate-900/80 px-2 py-1 rounded border border-slate-800 pointer-events-none backdrop-blur-sm">
+            Deterministic Squeeze: 3일 연속 고가-저가 범위 수축 (Range: $115 → $90 → $62) | MA20 ($1,697.46)
+          </div>
+        </div>
+      </div>
+
+      <!-- V3 True R:R Calculator & Odd-Lot Allocator -->
+      <div class="lg:col-span-4 bg-terminal-panel border border-terminal-border rounded-xl p-4 flex flex-col space-y-4">
+        <div class="flex items-center gap-2 border-b border-terminal-border pb-3">
+          <i class="fa-solid fa-calculator text-terminal-emerald"></i>
+          <h2 class="font-bold text-white text-sm">V3 정밀 홀수주 True R:R 계산기</h2>
+        </div>
+        
+        <div class="space-y-4 text-xs">
+          <div>
+            <label class="block text-slate-400 mb-1">1회 리스크 한도 (1R %)</label>
+            <div class="flex items-center gap-3">
+              <input type="range" id="inputRiskPercent" min="0.5" max="3.0" step="0.1" value="1.5" class="flex-1 accent-terminal-cyan h-2 bg-slate-800 rounded-lg cursor-pointer">
+              <span class="w-12 text-right font-bold text-terminal-rose font-mono text-sm" id="labelRiskPct">1.5%</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 pt-2">
+            <div><label class="block text-terminal-cyan mb-1">진입 (Entry)</label><input type="number" id="inpEntry" class="w-full bg-terminal-bg border border-terminal-border rounded p-2 text-white font-mono focus:border-terminal-cyan" value="1580.00"></div>
+            <div><label class="block text-terminal-rose mb-1">손절 (Stop)</label><input type="number" id="inpStop" class="w-full bg-terminal-bg border border-terminal-border rounded p-2 text-white font-mono focus:border-terminal-rose" value="1510.00"></div>
+            <div><label class="block text-terminal-emerald mb-1">목표 1 (TP1)</label><input type="number" id="inpTP1" class="w-full bg-terminal-bg border border-terminal-border rounded p-2 text-white font-mono focus:border-terminal-emerald" value="1720.00"></div>
+            <div><label class="block text-terminal-emerald mb-1">목표 2 (TP2)</label><input type="number" id="inpTP2" class="w-full bg-terminal-bg border border-terminal-border rounded p-2 text-white font-mono focus:border-terminal-emerald" value="1860.00"></div>
+          </div>
+
+          <div class="bg-terminal-card border border-terminal-border rounded-lg p-4 space-y-3 font-mono text-[11px] mt-2">
+            <div class="flex justify-between text-slate-300"><span>1주당 리스크 (Unit Risk):</span> <span class="font-bold text-terminal-rose" id="outUnitRisk">$70.00</span></div>
+            <div class="flex justify-between text-slate-300"><span>정밀 매수 수량 (Floor):</span> <span class="font-bold text-terminal-cyan text-sm" id="outShares">9 주</span></div>
+            <div class="flex justify-between text-slate-300 border-b border-slate-700 pb-2"><span>총 투입 자금 (Weight):</span> <span class="font-bold text-white" id="outInvest">$14,220.00 (32.3%)</span></div>
+            
+            <div class="text-slate-400 font-bold mb-1 pt-1">홀수주(Odd-Lot) 분할 익절 로직:</div>
+            <div class="flex justify-between text-slate-300 pl-2"><span>TP1 (50% 절사):</span> <span class="text-terminal-emerald" id="outTP1Shares">4주 (+$560.00)</span></div>
+            <div class="flex justify-between text-slate-300 pl-2"><span>TP2 (잔여물량):</span> <span class="text-terminal-emerald" id="outTP2Shares">5주 (+$1,400.00)</span></div>
+            
+            <div class="flex justify-between text-slate-300 border-t border-slate-700 pt-2"><span>총 예상이익 (Expected):</span> <span class="font-bold text-terminal-emerald text-sm" id="outTotalProfit">+$1,960.00</span></div>
+            <div class="flex justify-between text-slate-300"><span>실제 부담위험 (Actual):</span> <span class="font-bold text-terminal-rose text-sm" id="outTotalRisk">$630.00</span></div>
+            
+            <div class="bg-emerald-950/40 border border-emerald-600/40 rounded p-2 mt-2 flex justify-between items-center text-xs">
+              <span class="text-emerald-400 font-bold"><i class="fa-solid fa-check-double"></i> V3 True R:R</span>
+              <span class="font-extrabold text-white text-base font-mono" id="outTrueRR">1 : 3.11</span>
+            </div>
+            <div class="text-[9px] text-amber-500/80 leading-tight">
+              * ATR($95.10) 반영: 손절폭($70)이 ATR 이내이므로 장중 변동성에 의한 휩쏘 주의.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      
+      <div class="bg-terminal-panel border border-terminal-border rounded-xl p-4 flex flex-col h-full shadow-lg">
+        <div class="flex items-center gap-2 border-b border-terminal-border pb-3 mb-3 text-sm font-bold text-white">
+          <i class="fa-solid fa-robot text-terminal-purple"></i> AI 매매 프롬프트 (V3)
+        </div>
+        <textarea id="aiPrompt" readonly class="flex-1 bg-terminal-bg border border-terminal-border rounded-lg p-3 font-mono text-[10px] sm:text-[11px] text-slate-400 leading-relaxed resize-none focus:outline-none focus:border-terminal-purple h-[250px]"></textarea>
+      </div>
+
+      <div class="bg-terminal-panel border border-terminal-border rounded-xl p-4 flex flex-col h-full shadow-lg relative overflow-hidden">
+        <div class="absolute -right-10 -top-10 w-32 h-32 bg-meritz-wine/20 rounded-full blur-2xl"></div>
+        <div class="flex items-center gap-2 border-b border-terminal-border pb-3 mb-3 text-sm font-bold text-white relative z-10">
+          <div class="w-3 h-3 rounded-full bg-meritz-accent"></div> 메리츠 Super365 HTS 감시주문표
+        </div>
+        <div class="space-y-2 font-mono text-[10px] sm:text-[11px] relative z-10" id="htsTickets">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    /* 
+       AlphaPilot Pro v3.0 Core Logic
+       Author: DBA Kim.T.Y.
+       Date: 2026-10-10
+    */
+
+    const V3_STATE = {
+      capital: 44021.71,
+      atr: 95.10,
+      ma20: 1697.46,
+      currentPlan: 'A',
+      plans: {
+        A: { entry: 1580.00, stop: 1510.00, tp1: 1720.00, tp2: 1860.00 },
+        B: { entry: 1638.00, stop: 1570.00, tp1: 1740.00, tp2: 1880.00 }
+      },
+      chartData: []
+    };
+
+    // DBA Kim.T.Y. - V3: Deterministic Squeeze Candlestick Generator
+    // Hardcodes the exact 3 days to visually prove the squeeze constraint.
+    function generateV3Candles() {
+      const candles = [];
+      let p = 1750;
+      // Preceding 30 days of random data
+      for (let i = 30; i > 2; i--) {
+        const chg = (Math.random() - 0.5) * 35;
+        const op = p;
+        const cl = Number((op + chg).toFixed(2));
+        const hi = Number((Math.max(op, cl) + Math.random() * 20).toFixed(2));
+        const lo = Number((Math.min(op, cl) - Math.random() * 20).toFixed(2));
+        candles.push({ open: op, high: hi, low: lo, close: cl, ma20: cl * 1.05 }); // dummy MA for past
+        p = cl;
+      }
+      // Exact Deterministic 3-Day Squeeze Data
+      candles.push({ open: 1612.00, high: 1733.28, low: 1617.77, close: 1685.50, ma20: 1715.00 }); // D-2
+      candles.push({ open: 1670.00, high: 1675.00, low: 1584.14, close: 1609.46, ma20: 1705.00 }); // D-1
+      candles.push({ open: 1605.00, high: 1637.95, low: 1575.69, close: 1581.82, ma20: 1697.46 }); // D-0 (Current)
+      return candles;
+    }
+
+    function formatUSD(num) {
+      return '$' + Number(num).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    // Dual-Engine UI Toggle
+    function togglePlan(plan) {
+      V3_STATE.currentPlan = plan;
+      
+      const planA = document.getElementById('planACard');
+      const planB = document.getElementById('planBCard');
+      
+      if (plan === 'A') {
+        planA.classList.add('plan-active'); planB.classList.remove('plan-active');
+      } else {
+        planB.classList.add('plan-active'); planA.classList.remove('plan-active');
+      }
+
+      document.getElementById('inpEntry').value = V3_STATE.plans[plan].entry;
+      document.getElementById('inpStop').value = V3_STATE.plans[plan].stop;
+      document.getElementById('inpTP1').value = V3_STATE.plans[plan].tp1;
+      document.getElementById('inpTP2').value = V3_STATE.plans[plan].tp2;
+
+      calculateV3Math();
+    }
+
+    // Attach Event Listeners to Inputs
+    ['inputRiskPercent', 'inpEntry', 'inpStop', 'inpTP1', 'inpTP2'].forEach(id => {
+      document.getElementById(id).addEventListener('input', calculateV3Math);
+    });
+
+    function calculateV3Math() {
+      // 1. Get Inputs
+      const riskPct = Number(document.getElementById('inputRiskPercent').value);
+      document.getElementById('labelRiskPct').textContent = riskPct.toFixed(1) + '%';
+      
+      const entry = Number(document.getElementById('inpEntry').value);
+      const stop = Number(document.getElementById('inpStop').value);
+      const tp1 = Number(document.getElementById('inpTP1').value);
+      const tp2 = Number(document.getElementById('inpTP2').value);
+
+      // 2. Base 1R Limits
+      const maxRiskUSD = V3_STATE.capital * (riskPct / 100);
+      document.getElementById('kpiMaxRisk').textContent = formatUSD(maxRiskUSD);
+
+      // 3. DBA Kim.T.Y. - V3: True R:R Algorithm (Fractional Split Logic)
+      const unitRiskUSD = Math.max(0.01, entry - stop);
+      const shares = Math.floor(maxRiskUSD / unitRiskUSD);
+      
+      const tp1Shares = Math.floor(shares * 0.5); // 50% floor
+      const tp2Shares = shares - tp1Shares;       // Remainder
+
+      const tp1Profit = tp1Shares * (tp1 - entry);
+      const tp2Profit = tp2Shares * (tp2 - entry);
+      const expectedProfit = tp1Profit + tp2Profit;
+      
+      const actualRisk = shares * unitRiskUSD;
+      const trueRR = actualRisk > 0 ? (expectedProfit / actualRisk) : 0;
+      const totalInvest = shares * entry;
+      const weight = (totalInvest / V3_STATE.capital) * 100;
+
+      // 4. Update UI DOM
+      document.getElementById('outUnitRisk').textContent = formatUSD(unitRiskUSD);
+      document.getElementById('outShares').textContent = `${shares} 주`;
+      document.getElementById('outInvest').textContent = `${formatUSD(totalInvest)} (${weight.toFixed(1)}%)`;
+      
+      document.getElementById('outTP1Shares').textContent = `${tp1Shares}주 (+${formatUSD(tp1Profit)})`;
+      document.getElementById('outTP2Shares').textContent = `${tp2Shares}주 (+${formatUSD(tp2Profit)})`;
+      
+      document.getElementById('outTotalProfit').textContent = `+${formatUSD(expectedProfit)}`;
+      document.getElementById('outTotalRisk').textContent = formatUSD(actualRisk);
+      document.getElementById('outTrueRR').textContent = `1 : ${trueRR.toFixed(2)}`;
+
+      const rrEl = document.getElementById('outTrueRR').parentElement;
+      if (trueRR >= 2.0) {
+        rrEl.className = "bg-emerald-950/40 border border-emerald-600/40 rounded p-2 mt-2 flex justify-between items-center text-xs";
+        document.getElementById('outTrueRR').className = "font-extrabold text-emerald-400 text-base font-mono";
+      } else {
+        rrEl.className = "bg-rose-950/40 border border-rose-600/40 rounded p-2 mt-2 flex justify-between items-center text-xs";
+        document.getElementById('outTrueRR').className = "font-extrabold text-rose-400 text-base font-mono";
+      }
+
+      // 5. Update Panels & Chart
+      updateV3Prompt(entry, stop, tp1, tp2, shares, tp1Shares, tp2Shares, expectedProfit, actualRisk, trueRR);
+      updateHTSTickets(entry, stop, tp1, tp2, shares, tp1Shares, tp2Shares);
+      renderChart(entry, stop, tp1, tp2);
+    }
+
+    function updateV3Prompt(entry, stop, tp1, tp2, shares, tp1Shares, tp2Shares, expProfit, actualRisk, trueRR) {
+      const planName = V3_STATE.currentPlan === 'A' ? 'Plan A (Pullback)' : 'Plan B (Squeeze Breakout)';
+      const text = `[AlphaPilot Pro v3.0 - True R:R 기반 매매 전략]
+- 종목: SNDK / 기준자본: $44,021.71
+- 선택 플랜: ${planName}
+- 퀀트 환경: MA20($1697.46) 하회, ATR($95.10)로 고변동성. 최근 3일간 Squeeze 축소 확인.
+
+[정밀 1R 사이징 (홀수주 분할)]
+- 진입: ${formatUSD(entry)} / 손절: ${formatUSD(stop)} (리스크 ${formatUSD(entry-stop)})
+- 매수: ${shares}주 (실제 리스크: ${formatUSD(actualRisk)})
+- TP1 익절(50% 절사): ${tp1Shares}주 @ ${formatUSD(tp1)} (예상이익 +${formatUSD(tp1Shares * (tp1-entry))})
+- TP2 익절(잔여): ${tp2Shares}주 @ ${formatUSD(tp2)} (예상이익 +${formatUSD(tp2Shares * (tp2-entry))})
+- 총 예상이익: +${formatUSD(expProfit)}
+- V3 True Risk-Reward: 1 : ${trueRR.toFixed(2)}
+
+[메리츠 Super365 오토 스탑로스 지침]
+1. ${formatUSD(entry)} 체결 즉시 서버에 ${formatUSD(stop)} 스탑로스 등록.
+2. TP1 도달 시 자동 익절 후, 즉각 잔여 ${tp2Shares}주의 스탑로스를 본절가(${formatUSD(entry)})로 올려 휩쏘에 의한 원금 손실 원천 차단.`;
+      document.getElementById('aiPrompt').value = text;
+    }
+
+    function updateHTSTickets(entry, stop, tp1, tp2, shares, tp1Shares, tp2Shares) {
+      document.getElementById('htsTickets').innerHTML = `
+        <div class="bg-terminal-card border border-terminal-border p-2.5 rounded-lg flex justify-between">
+          <div><div class="text-terminal-cyan font-bold">주문 1. 진입 (보통 지정가)</div><div class="text-slate-400 mt-1">${formatUSD(entry)} 매수 발주</div></div>
+          <div class="font-bold text-white">${shares} 주</div>
+        </div>
+        <div class="bg-terminal-card border border-terminal-border p-2.5 rounded-lg flex justify-between">
+          <div><div class="text-terminal-rose font-bold">주문 2. 손절 (서버 감시)</div><div class="text-slate-400 mt-1">${formatUSD(stop)} 이탈 시 시장가 청산</div></div>
+          <div class="font-bold text-terminal-rose">-${shares} 주</div>
+        </div>
+        <div class="bg-terminal-card border border-terminal-border p-2.5 rounded-lg flex justify-between">
+          <div><div class="text-terminal-emerald font-bold">주문 3. TP1 익절</div><div class="text-slate-400 mt-1">${formatUSD(tp1)} 도달 시 매도</div></div>
+          <div class="font-bold text-terminal-emerald">${tp1Shares} 주</div>
+        </div>
+        <div class="bg-terminal-card border border-terminal-border p-2.5 rounded-lg flex justify-between">
+          <div><div class="text-terminal-emerald font-bold">주문 4. TP2 익절</div><div class="text-slate-400 mt-1">${formatUSD(tp2)} 도달 시 매도</div></div>
+          <div class="font-bold text-terminal-emerald">${tp2Shares} 주</div>
+        </div>
+      `;
+    }
+
+    // Charting Engine
+    function renderChart(entry, stop, tp1, tp2) {
+      const canvas = document.getElementById('v3ChartCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
+      
+      const width = rect.width;
+      const height = rect.height;
+      
+      ctx.clearRect(0, 0, width, height);
+
+      const data = V3_STATE.chartData;
+      const pLeft = 10, pRight = 70;
+      const chartW = width - pLeft - pRight;
+      
+      const maxP = Math.max(...data.map(d=>d.high), tp2 * 1.02, 1710);
+      const minP = Math.min(...data.map(d=>d.low), stop * 0.98);
+      const rangeP = maxP - minP || 1;
+      
+      const getY = p => height - ((p - minP) / rangeP) * (height - 40) - 20;
+      const stepX = chartW / data.length;
+      const candleW = stepX * 0.7;
+
+      // Draw Zones
+      ctx.fillStyle = 'rgba(16, 185, 129, 0.05)';
+      ctx.fillRect(pLeft, getY(tp2), chartW, getY(entry) - getY(tp2));
+      ctx.fillStyle = 'rgba(244, 63, 94, 0.05)';
+      ctx.fillRect(pLeft, getY(entry), chartW, getY(stop) - getY(entry));
+
+      // Draw Target Lines
+      function drawLine(val, col, label, dashed=false) {
+        const y = getY(val);
+        ctx.beginPath(); ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+        if(dashed) ctx.setLineDash([4,4]);
+        ctx.moveTo(pLeft, y); ctx.lineTo(width-pRight, y); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = col; ctx.fillRect(width-pRight+2, y-7, 60, 14);
+        ctx.fillStyle = '#020617'; ctx.font = 'bold 9px "JetBrains Mono"';
+        ctx.fillText(label, width-pRight+5, y+3);
+      }
+      drawLine(entry, '#06b6d4', 'ENT', true);
+      drawLine(stop, '#f43f5e', 'STP');
+      drawLine(tp1, '#10b981', 'TP1', true);
+      drawLine(tp2, '#8b5cf6', 'TP2');
+
+      // Draw Candles & Highlight Squeeze (last 3)
+      data.forEach((c, i) => {
+        const x = pLeft + i * stepX + stepX/2;
+        const isUp = c.close >= c.open;
+        const color = isUp ? '#f43f5e' : '#3b82f6'; // KR MTS standard (Red up, Blue down)
+        
+        ctx.strokeStyle = color; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x, getY(c.high)); ctx.lineTo(x, getY(c.low)); ctx.stroke();
+        
+        ctx.fillStyle = color;
+        const bodyTop = Math.min(getY(c.open), getY(c.close));
+        const bodyH = Math.max(2, Math.abs(getY(c.open) - getY(c.close)));
+        ctx.fillRect(x - candleW/2, bodyTop, candleW, bodyH);
+
+        // Highlight exact Squeeze visually
+        if (i >= data.length - 3) {
+          ctx.strokeStyle = 'rgba(245, 158, 11, 0.6)';
+          ctx.strokeRect(x - candleW/2 - 2, getY(c.high) - 2, candleW + 4, getY(c.low) - getY(c.high) + 4);
+        }
+      });
+
+      // MA20 Line
+      ctx.strokeStyle = '#06b6d4'; ctx.lineWidth = 1.5; ctx.beginPath();
+      data.forEach((c, i) => {
+        const x = pLeft + i * stepX + stepX/2;
+        if(i===0) ctx.moveTo(x, getY(c.ma20)); else ctx.lineTo(x, getY(c.ma20));
+      });
+      ctx.stroke();
+    }
+
+    // Initialize App
+    window.addEventListener('DOMContentLoaded', () => {
+      V3_STATE.chartData = generateV3Candles();
+      togglePlan('A'); // Initiates calc and draw
+      window.addEventListener('resize', () => {
+        calculateV3Math();
+      });
+    });
+
+  </script>
+</body>
+</html>
