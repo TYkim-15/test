@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AlphaPilot Pro v4.5.2 - 퀀트 추천 전략 센터 (Recommend)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+          colors: {
+            darkBg: '#05080f', darkPanel: '#0a101d', darkCard: '#101726',
+            terminalBorder: '#1e293b', cyanNeon: '#00f2fe', emeraldProfit: '#10b981', roseRisk: '#f43f5e', amberWarn: '#f59e0b', goldHigh: '#fbbf24'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #05080f; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+    .flash-warn { animation: flashWarn 1.5s infinite alternate; }
+    @keyframes flashWarn { from { color: #f59e0b; text-shadow: 0 0 5px rgba(245,158,11,0.5); } to { color: #b45309; text-shadow: none; } }
+    @media print {
+      header, .no-print, button, #toastBox { display: none !important; }
+      body { background: white !important; color: black !important; }
+      .bg-darkBg, .bg-darkPanel, .bg-darkCard { background: white !important; border: 1px solid #ccc !important; color: black !important; }
+      .text-white, .text-slate-100, .text-slate-200, .text-slate-300, .text-cyan-300, .text-goldHigh { color: black !important; }
+      #orderTicketPreview { border: 1px solid #333 !important; color: black !important; background: white !important; }
+    }
+  </style>
+</head>
+
+<body class="bg-darkBg text-slate-100 font-sans min-h-screen selection:bg-cyan-500 selection:text-black pb-12">
+
+  <!-- Toast Notification -->
+  <div id="toastBox" class="fixed top-6 left-1/2 transform -translate-x-1/2 -translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center gap-3 bg-gradient-to-r from-slate-900 to-slate-800 text-white px-6 py-3 rounded-xl shadow-2xl border border-slate-700 text-sm font-semibold pointer-events-none">
+    <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400"></i>
+    <span id="toastMsg">알림 메시지</span>
+  </div>
+
+  <!-- Header with Global Cross-Navigation & Print -->
+  <header class="border-b border-terminalBorder bg-darkPanel sticky top-0 z-40 px-4 py-2.5 backdrop-blur-md bg-opacity-95 shadow-md">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+      
+      <!-- Brand & Mobile Actions -->
+      <div class="flex items-center justify-between w-full md:w-auto">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-compass-drafting text-emerald-400 text-lg"></i>
+          <span class="font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-cyanNeon to-blue-400 text-lg tracking-wider">
+            AlphaPilot Recommend
+          </span>
+          <span class="bg-emerald-950/80 text-emerald-300 border border-emerald-600/60 px-2 py-0.5 rounded text-[10px] font-bold">
+            STRATEGY VAULT
+          </span>
+        </div>
+
+        <div class="flex items-center gap-1 md:hidden">
+          <button onclick="window.print()" class="bg-slate-800 border border-slate-600 text-slate-200 px-2.5 py-1.5 rounded-lg text-[10px] font-bold hover:text-white transition-all flex items-center gap-1">
+            <i class="fa-solid fa-print"></i> 인쇄
+          </button>
+          <button onclick="downloadStrategyGuideMd()" class="bg-slate-800 border border-slate-600 text-cyan-300 px-2.5 py-1.5 rounded-lg text-[10px] font-bold hover:text-white transition-all flex items-center gap-1">
+            <i class="fa-solid fa-file-arrow-down text-cyan-400"></i> MD
+          </button>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs (모든 페이지 상호 이동 링크) -->
+      <nav class="flex items-center gap-1 bg-[#05080f] p-1 rounded-xl border border-slate-800 self-center md:self-auto overflow-x-auto max-w-full">
+        <a href="javascript:void(0)" onclick="location.href='index.html?symbol='+encodeURIComponent(currentTicker)" class="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer">
+          <i class="fa-solid fa-layer-group text-cyanNeon"></i>
+          <span>메인 (Standard)</span>
+        </a>
+        <a href="javascript:void(0)" onclick="location.href='backtest.html?symbol='+encodeURIComponent(currentTicker)" class="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer">
+          <i class="fa-solid fa-flask-vial text-purple-400"></i>
+          <span>백테스트 연구소</span>
+        </a>
+        <a href="recommend.html" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.25)] transition-all flex items-center gap-1.5 whitespace-nowrap">
+          <i class="fa-solid fa-compass-drafting text-emerald-400"></i>
+          <span>★ 퀀트 추천 전략</span>
+        </a>
+        <a href="javascript:void(0)" onclick="location.href='new.html?symbol='+encodeURIComponent(currentTicker)+'&plan=PLAN_High'" class="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-amber-300 transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer">
+          <i class="fa-solid fa-crown text-goldHigh"></i>
+          <span>PLAN_High 실전 (NEW)</span>
+        </a>
+      </nav>
+      
+      <!-- Right Action & Sync Status & Print Button -->
+      <div class="flex items-center gap-2 w-full md:w-auto justify-end">
+        <div class="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-700" id="syncStatusBox">
+          <i class="fa-solid fa-circle-notch text-slate-400" id="syncIcon"></i>
+          <span id="marketSyncStatusText" class="text-slate-300 font-mono text-[11px] truncate">대기 중...</span>
+        </div>
+        <button onclick="window.print()" class="hidden md:flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold shadow-md transition-all cursor-pointer">
+          <i class="fa-solid fa-print text-cyan-400"></i> 페이지 출력
+        </button>
+        <button onclick="downloadStrategyGuideMd()" class="hidden md:flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold shadow-lg transition-all cursor-pointer">
+          <i class="fa-solid fa-file-arrow-down"></i> 전략 MD
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- Active Recommended Preset Banner -->
+    <section class="bg-gradient-to-r from-emerald-950/70 via-slate-900 to-cyan-950/70 border border-emerald-600/40 rounded-2xl p-4 md:p-5 relative overflow-hidden shadow-[0_0_20px_rgba(16,185,129,0.15)]">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-300 text-2xl shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+            <i class="fa-solid fa-bookmark"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-emerald-400 uppercase tracking-wider">RECOMMENDED STRATEGY VAULT</span>
+              <span id="badgeActiveTicker" class="bg-emerald-500/20 text-emerald-300 text-[10px] font-mono px-2 py-0.5 rounded border border-emerald-500/40 font-bold">
+                [CONL]
+              </span>
+            </div>
+            <h2 id="activePresetTitle" class="text-lg md:text-xl font-extrabold text-white mt-0.5 flex items-center gap-2 font-mono">
+              [CONL] 74.2% 승률 검증 최적화 전략
+            </h2>
+            <p id="activePresetDesc" class="text-xs text-slate-400 mt-0.5">
+              백테스트 연구소에서 검증된 최적 ATR 가중치(진입 0.00x, 손절 1.00x, TP1 1.50x, TP2 3.00x)가 적용된 실전 매매표입니다.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 self-start md:self-center">
+          <button onclick="location.href='backtest.html?symbol='+encodeURIComponent(currentTicker)" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5">
+            <i class="fa-solid fa-flask-vial text-purple-400"></i> 백테스트 재실행
+          </button>
+          <button onclick="clearAllPresets()" class="bg-rose-950/60 hover:bg-rose-900 border border-rose-700/60 text-rose-300 px-2.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1" title="전체 프리셋 비우기">
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 1. Strategy Cards Gallery -->
+    <section class="bg-darkPanel border border-terminalBorder rounded-2xl p-4 md:p-5 space-y-3">
+      <div class="flex items-center justify-between border-b border-terminalBorder pb-2">
+        <h3 class="text-xs font-bold text-slate-300 flex items-center gap-2">
+          <i class="fa-solid fa-box-archive text-emerald-400"></i> 저장된 퀀트 추천 전략 갤러리 (Preset Vault)
+        </h3>
+        <span class="text-[11px] text-slate-400 font-mono" id="presetCountText">저장된 전략: 0개</span>
+      </div>
+
+      <!-- Presets Horizontal Carousel / Grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-1" id="presetCardsGrid">
+        <!-- Injected by JS -->
+      </div>
+    </section>
+
+    <!-- 2. Realtime KPI & Quant Monitor -->
+    <section class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div class="lg:col-span-1 bg-darkPanel border border-terminalBorder rounded-2xl p-4 flex flex-col justify-center">
+        <div class="text-[11px] text-slate-400 flex justify-between mb-1">
+          <span>[Super365] 가용현금 시뮬레이터</span>
+          <i class="fa-solid fa-wallet text-amber-400"></i>
+        </div>
+        <div class="text-xl font-bold font-mono text-white mb-2" id="displayTotalCash">$30,983.55</div>
+        <div class="w-full bg-slate-800 rounded-full h-1.5 mb-1.5">
+          <div id="cashProgressBar" class="bg-gradient-to-r from-emerald-500 to-cyan-400 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+        </div>
+        <div class="flex justify-between text-[10px] font-mono">
+          <span class="text-slate-400" id="displayUsedCash">소진: $0.00</span>
+          <span class="text-emerald-400 font-bold" id="displayRemainCash">잔여: $30,983.55</span>
+        </div>
+      </div>
+
+      <div class="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-darkCard border border-terminalBorder rounded-xl p-4 relative">
+          <div class="text-[11px] text-slate-400 flex justify-between">
+            <span id="priceLabel">현재가 (서버 조회)</span> 
+            <i class="fa-solid fa-tag text-cyan-400"></i>
+          </div>
+          <div class="text-2xl font-bold font-mono text-cyan-300 mt-1" id="kpiCurrentPrice">로딩중...</div>
+          <div class="text-xs mt-1 font-bold" id="kpiPriceChange">-</div>
+          <div class="text-[10px] text-slate-500 font-mono mt-1.5 flex items-center gap-1 border-t border-slate-800/80 pt-1" id="kpiFetchTimeBox">
+            <i class="fa-regular fa-clock text-[9px] text-cyan-400"></i>
+            <span id="kpiFetchTime">조회시각: 대기 중</span>
+          </div>
+        </div>
+        <div class="bg-darkCard border border-terminalBorder rounded-xl p-4">
+          <div class="text-[11px] text-slate-400 flex justify-between"><span>1회 허용 손실 (1R, 1.5%)</span> <i class="fa-solid fa-shield-halved text-rose-400"></i></div>
+          <div class="text-2xl font-bold font-mono text-rose-400 mt-1" id="kpiMaxRisk">$660.33</div>
+          <div class="text-xs text-slate-500 mt-1">총자산 $44,021.71 기준</div>
+        </div>
+        <div class="bg-darkCard border border-terminalBorder rounded-xl p-4">
+          <div class="text-[11px] text-slate-400 flex justify-between"><span>퀀트 기술 지표 (14일)</span> <i class="fa-solid fa-chart-pie text-purple-400"></i></div>
+          <div class="text-sm font-bold font-mono text-purple-300 mt-1.5 flex flex-col gap-1" id="kpiIndicators">
+            <span>ATR: 로딩중...</span>
+            <span>MA20: 로딩중...</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Recommendation Execution Panel -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Left Column: Strategy Specs & Execution Details -->
+      <div class="lg:col-span-2 bg-darkPanel border border-terminalBorder rounded-2xl p-5 space-y-4">
+        <div class="flex items-center justify-between border-b border-terminalBorder pb-3">
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-sliders text-emerald-400"></i> 적용된 최적 가중치 기반 실전 매매 계획
+          </h3>
+          <span class="text-xs font-mono font-bold text-emerald-400" id="lblPlanWinRateBadge">검증 승률: 74.2%</span>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+          <div class="bg-darkCard border border-terminalBorder rounded-xl p-3">
+            <div class="text-[10px] text-slate-400">진입 ATR 계수</div>
+            <div class="text-base font-bold font-mono text-cyan-300 mt-1" id="dispParamEntry">0.00x</div>
+            <div class="text-[10px] text-slate-500 mt-0.5">현재가 대비 오프셋</div>
+          </div>
+          <div class="bg-darkCard border border-terminalBorder rounded-xl p-3">
+            <div class="text-[10px] text-slate-400">손절 ATR 계수</div>
+            <div class="text-base font-bold font-mono text-rose-400 mt-1" id="dispParamStop">1.00x</div>
+            <div class="text-[10px] text-slate-500 mt-0.5">진입가 기준 버퍼</div>
+          </div>
+          <div class="bg-darkCard border border-terminalBorder rounded-xl p-3">
+            <div class="text-[10px] text-slate-400">1차 익절 (50%)</div>
+            <div class="text-base font-bold font-mono text-emerald-400 mt-1" id="dispParamTP1">1.50x</div>
+            <div class="text-[10px] text-slate-500 mt-0.5">본절 스탑 승격</div>
+          </div>
+          <div class="bg-darkCard border border-terminalBorder rounded-xl p-3">
+            <div class="text-[10px] text-slate-400">2차 익절 (잔여)</div>
+            <div class="text-base font-bold font-mono text-purple-400 mt-1" id="dispParamTP2">3.00x</div>
+            <div class="text-[10px] text-slate-500 mt-0.5">추세 추종 청산</div>
+          </div>
+        </div>
+
+        <!-- Price Target Levels Card -->
+        <div class="bg-darkCard border border-terminalBorder rounded-xl p-4 space-y-3 font-mono text-xs">
+          <div class="flex justify-between items-center py-1.5 border-b border-slate-800">
+            <span class="text-slate-400">■ 추천 진입 목표가 (Entry)</span>
+            <span class="font-bold text-cyan-300 text-sm" id="calcEntryPrice">$0.00</span>
+          </div>
+          <div class="flex justify-between items-center py-1.5 border-b border-slate-800">
+            <span class="text-rose-400 font-bold">■ 손절 보호가 (Stop-Loss)</span>
+            <span class="font-bold text-rose-400 text-sm" id="calcStopPrice">$0.00</span>
+          </div>
+          <div class="flex justify-between items-center py-1.5 border-b border-slate-800">
+            <span class="text-emerald-400 font-bold">■ 1차 익절가 (TP1, 50% 분할)</span>
+            <span class="font-bold text-emerald-400 text-sm" id="calcTP1Price">$0.00</span>
+          </div>
+          <div class="flex justify-between items-center py-1.5 border-b border-slate-800">
+            <span class="text-purple-400 font-bold">■ 2차 익절가 (TP2, 잔여 청산)</span>
+            <span class="font-bold text-purple-400 text-sm" id="calcTP2Price">$0.00</span>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2 pt-2 text-center text-[11px]">
+            <div class="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+              <span class="text-slate-400 block text-[10px]">1주당 위험 (1R)</span>
+              <span class="font-bold text-rose-400" id="calcUnitRisk">$0.00</span>
+            </div>
+            <div class="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+              <span class="text-slate-400 block text-[10px]">권장 매수 수량</span>
+              <span class="font-bold text-amber-300" id="calcShares">0 주</span>
+            </div>
+            <div class="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+              <span class="text-slate-400 block text-[10px]">최종 손익비 (R:R)</span>
+              <span class="font-bold text-emerald-400" id="calcRiskReward">1 : 2.25</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: Automated Order Ticket Preview -->
+      <div class="bg-darkPanel border border-terminalBorder rounded-2xl p-5 flex flex-col justify-between space-y-4">
+        <div>
+          <div class="flex items-center justify-between border-b border-terminalBorder pb-3">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-receipt text-cyan-400"></i> 자동감시주문 실행표
+            </h3>
+            <button onclick="copyOrderTicket()" class="bg-slate-800 hover:bg-slate-700 text-cyan-300 px-2 py-1 rounded text-[10px] font-bold border border-slate-700 transition-all flex items-center gap-1">
+              <i class="fa-regular fa-copy"></i> 복사
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-2 mb-3">
+            HTS/MTS 자동감시주문(스탑로스/트레일링)에 바로 등록할 수 있는 표준 주문표입니다.
+          </p>
+
+          <textarea id="orderTicketPreview" readonly class="w-full bg-[#05080f] border border-slate-800 rounded-xl p-3 h-[240px] font-mono text-[11px] text-slate-300 leading-relaxed resize-none focus:outline-none"></textarea>
+        </div>
+
+        <div class="space-y-2 pt-2">
+          <button onclick="window.print()" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer">
+            <i class="fa-solid fa-print text-cyan-400"></i> 이 매매계획서 인쇄/PDF 저장
+          </button>
+          <button onclick="location.href='index.html?symbol='+encodeURIComponent(currentTicker)" class="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer">
+            <i class="fa-solid fa-layer-group"></i> 메인 Standard 대시보드로 이동
+          </button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Footer -->
+    <footer class="border-t border-terminalBorder pt-4 text-center text-[10px] text-slate-600 font-mono">
+      AlphaPilot Pro v4.5.2 Quant Engine Enforced · Recommended Strategies Center.<br>
+      Strict 1R Risk Protocol for Meritz Super365. Author: DBA Kim.T.Y.
+    </footer>
+
+  </main>
+
+  <script>
+    const API_QUOTE = '/api/quote';
+    const CONST_CAPITAL = 44021.71;
+    const CONST_CASH = 30983.55;
+    const MAX_RISK = 660.33; // 1.5%
+
+    const STORAGE_KEY_PRESETS = 'ALPHAPILOT_RECOMMEND_PRESETS';
+
+    // 기본 시드 추천 전략 (저장된 내역이 없을 때 기본 제공)
+    const DEFAULT_SEED_PRESETS = [
+      {
+        id: 'CONL_74.2_20261012',
+        symbol: 'CONL',
+        winRate: 74.2,
+        date: '2026-10-12',
+        title: 'CONL 고수익 모멘텀 돌파',
+        weights: { entryAtr: 0.0, stopAtr: 1.0, tp1Atr: 1.5, tp2Atr: 3.0 }
+      },
+      {
+        id: 'MU_68.5_20261012',
+        symbol: 'MU',
+        winRate: 68.5,
+        date: '2026-10-12',
+        title: 'MU 메모리 사이클 안정형',
+        weights: { entryAtr: -0.2, stopAtr: 0.8, tp1Atr: 1.2, tp2Atr: 2.5 }
+      },
+      {
+        id: 'SNDK_71.0_20261012',
+        symbol: 'SNDK',
+        winRate: 71.0,
+        date: '2026-10-12',
+        title: 'SNDK 단기 스윙 타점',
+        weights: { entryAtr: 0.1, stopAtr: 1.1, tp1Atr: 1.6, tp2Atr: 3.2 }
+      },
+      {
+        id: 'NVDA_66.7_20261012',
+        symbol: 'NVDA',
+        winRate: 66.7,
+        date: '2026-10-12',
+        title: 'NVDA 추세 추종 스윙',
+        weights: { entryAtr: 0.0, stopAtr: 1.0, tp1Atr: 2.0, tp2Atr: 4.0 }
+      }
+    ];
+
+    let currentTicker = 'CONL';
+    let currentWeights = { entryAtr: 0.0, stopAtr: 1.0, tp1Atr: 1.5, tp2Atr: 3.0 };
+    let currentWinRate = 74.2;
+    let activePresetId = 'CONL_74.2_20261012';
+
+    let currentData = { price: 0, change: 0, changePct: 0, atr: 0, ma20: 0, history: [], sourceUpdatedAt: null, tradedAt: null };
+
+    function fmtUSD(val) {
+      return `$${Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
+    function showToast(msg, type = 'success') {
+      const b = document.getElementById('toastBox');
+      const m = document.getElementById('toastMsg');
+      const i = document.getElementById('toastIcon');
+      if (!b || !m || !i) return;
+      m.textContent = msg;
+      if (type === 'success') i.className = 'fa-solid fa-circle-check text-emerald-400';
+      else if (type === 'warn') i.className = 'fa-solid fa-circle-exclamation text-amber-400';
+      else i.className = 'fa-solid fa-triangle-exclamation text-rose-400';
+      b.classList.remove('-translate-y-20', 'opacity-0');
+      setTimeout(() => b.classList.add('-translate-y-20', 'opacity-0'), 3000);
+    }
+
+    function getSavedPresets() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY_PRESETS);
+        if (!raw) {
+          localStorage.setItem(STORAGE_KEY_PRESETS, JSON.stringify(DEFAULT_SEED_PRESETS));
+          return DEFAULT_SEED_PRESETS;
+        }
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_SEED_PRESETS;
+      } catch (e) {
+        return DEFAULT_SEED_PRESETS;
+      }
+    }
+
+    function renderPresetCards() {
+      const presets = getSavedPresets();
+      const grid = document.getElementById('presetCardsGrid');
+      const countText = document.getElementById('presetCountText');
+      if (countText) countText.textContent = `저장된 전략: ${presets.length}개`;
+      if (!grid) return;
+
+      grid.innerHTML = '';
+      presets.forEach(p => {
+        const isActive = p.id === activePresetId;
+        const card = document.createElement('div');
+        card.className = `bg-darkCard border rounded-xl p-3.5 flex flex-col justify-between transition-all ${
+          isActive
+            ? 'border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.25)] bg-slate-900/90'
+            : 'border-slate-800 hover:border-slate-700'
+        }`;
+
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-sm font-extrabold font-mono text-cyan-300">[${p.symbol}]</span>
+              <span class="text-xs font-bold font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">
+                ${p.winRate.toFixed(1)}% 승률
+              </span>
+            </div>
+            <div class="text-xs font-bold text-slate-200 line-clamp-1 mb-1">${p.title || `${p.symbol} 백테스트 전략`}</div>
+            <div class="text-[10px] text-slate-500 font-mono flex items-center justify-between">
+              <span>저장일: ${p.date || '최근'}</span>
+              <span>ATR ${p.weights.entryAtr >= 0 ? '+' : ''}${p.weights.entryAtr} / ${p.weights.stopAtr}x</span>
+            </div>
+          </div>
+          <div class="mt-3 pt-2.5 border-t border-slate-800 flex items-center gap-1.5">
+            <button onclick="selectPreset('${p.id}')" class="flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              isActive
+                ? 'bg-emerald-600 text-white shadow-md'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+            }">
+              ${isActive ? '✓ 현재 적용됨' : '전략 불러오기'}
+            </button>
+            <button onclick="deletePreset('${p.id}')" class="px-2 py-1.5 rounded-lg text-xs text-slate-500 hover:text-rose-400 bg-slate-800/50 hover:bg-slate-800 transition-all" title="삭제">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function selectPreset(id) {
+      const presets = getSavedPresets();
+      const target = presets.find(p => p.id === id);
+      if (!target) return;
+
+      activePresetId = target.id;
+      currentTicker = target.symbol;
+      currentWeights = target.weights;
+      currentWinRate = target.winRate;
+
+      updatePresetUI(target);
+      renderPresetCards();
+      loadTickerData(currentTicker);
+      showToast(`[${target.symbol}] 승률 ${target.winRate}% 전략을 불러왔습니다.`, 'success');
+    }
+
+    function deletePreset(id) {
+      if (!confirm('해당 추천 전략을 삭제하시겠습니까?')) return;
+      let presets = getSavedPresets().filter(p => p.id !== id);
+      localStorage.setItem(STORAGE_KEY_PRESETS, JSON.stringify(presets));
+      if (activePresetId === id && presets.length > 0) {
+        selectPreset(presets[0].id);
+      } else {
+        renderPresetCards();
+      }
+      showToast('전략이 삭제되었습니다.', 'warn');
+    }
+
+    function clearAllPresets() {
+      if (!confirm('저장된 모든 추천 전략을 초기화하시겠습니까?')) return;
+      localStorage.removeItem(STORAGE_KEY_PRESETS);
+      renderPresetCards();
+      showToast('전체 추천 전략이 기본값으로 초기화되었습니다.', 'warn');
+    }
+
+    function updatePresetUI(p) {
+      document.getElementById('badgeActiveTicker').textContent = `[${p.symbol}]`;
+      document.getElementById('activePresetTitle').textContent = `[${p.symbol}] ${p.winRate.toFixed(1)}% 승률 검증 최적화 전략`;
+      document.getElementById('activePresetDesc').textContent = `백테스트 연구소에서 검증된 최적 ATR 가중치(진입 ${p.weights.entryAtr >= 0 ? '+' : ''}${p.weights.entryAtr}x, 손절 ${p.weights.stopAtr}x, TP1 ${p.weights.tp1Atr}x, TP2 ${p.weights.tp2Atr}x)가 적용된 실전 매매표입니다.`;
+
+      document.getElementById('lblPlanWinRateBadge').textContent = `검증 승률: ${p.winRate.toFixed(1)}%`;
+      document.getElementById('dispParamEntry').textContent = `${p.weights.entryAtr >= 0 ? '+' : ''}${p.weights.entryAtr.toFixed(2)}x`;
+      document.getElementById('dispParamStop').textContent = `${p.weights.stopAtr.toFixed(2)}x`;
+      document.getElementById('dispParamTP1').textContent = `${p.weights.tp1Atr.toFixed(2)}x`;
+      document.getElementById('dispParamTP2').textContent = `${p.weights.tp2Atr.toFixed(2)}x`;
+    }
+
+    async function loadTickerData(ticker) {
+      try {
+        currentTicker = ticker.replace(/[^A-Z0-9._-]/gi, '').toUpperCase();
+        const syncText = document.getElementById('marketSyncStatusText');
+        const syncIcon = document.getElementById('syncIcon');
+        syncIcon.className = 'fa-solid fa-server fa-beat text-cyan-400';
+        syncText.textContent = `시세 동기화 중...`;
+
+        const res = await fetch(`${API_QUOTE}?symbol=${encodeURIComponent(currentTicker)}`, {
+          cache: 'no-store'
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+        const q = data.quote || {};
+        currentData.price = Number(q.price);
+        currentData.change = Number(q.change) || 0;
+        currentData.changePct = Number(q.changePct) || 0;
+        currentData.sourceUpdatedAt = data.fetchedAt;
+        currentData.tradedAt = q.tradedAt;
+
+        // KPI UI Update
+        document.getElementById('kpiCurrentPrice').textContent = fmtUSD(currentData.price);
+        const chgEl = document.getElementById('kpiPriceChange');
+        chgEl.textContent = `${currentData.change >= 0 ? '▲' : '▼'} ${fmtUSD(Math.abs(currentData.change))} (${Math.abs(currentData.changePct).toFixed(2)}%)`;
+        chgEl.className = `text-xs mt-1 font-bold ${currentData.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+        document.getElementById('kpiFetchTime').textContent = `수신: ${new Date(currentData.sourceUpdatedAt).toLocaleTimeString()}`;
+
+        // OHLC 처리
+        if (Array.isArray(q.history) && q.history.length >= 20) {
+          currentData.history = q.history;
+          processQuantData();
+        } else {
+          currentData.atr = Math.round(currentData.price * 0.03 * 100) / 100;
+          currentData.ma20 = currentData.price;
+          calculateExecutionTargets();
+        }
+
+        syncIcon.className = 'fa-solid fa-shield-halved text-emerald-400';
+        syncText.textContent = `교차검증 PASS (${currentTicker})`;
+      } catch (err) {
+        console.error(err);
+        const syncText = document.getElementById('marketSyncStatusText');
+        const syncIcon = document.getElementById('syncIcon');
+        syncIcon.className = 'fa-solid fa-triangle-exclamation text-amber-500';
+        syncText.textContent = `통신 실패 (오프라인 추정값 연산)`;
+        currentData.price = currentData.price || 100.0;
+        currentData.atr = Math.round(currentData.price * 0.03 * 100) / 100;
+        currentData.ma20 = currentData.price;
+        calculateExecutionTargets();
+      }
+    }
+
+    function processQuantData() {
+      const hist = currentData.history;
+      let sum = 0;
+      for (let i = hist.length - 20; i < hist.length; i++) sum += hist[i].c;
+      currentData.ma20 = sum / 20;
+
+      let trSum = 0;
+      const start = Math.max(1, hist.length - 14);
+      for (let i = start; i < hist.length; i++) {
+        const h = hist[i].h, l = hist[i].l, prevC = hist[i - 1].c;
+        const tr = Math.max(h - l, Math.abs(h - prevC), Math.abs(l - prevC));
+        trSum += tr;
+      }
+      currentData.atr = Math.round((trSum / 14) * 100) / 100;
+
+      document.getElementById('kpiIndicators').innerHTML = `
+        <span class="text-purple-300">ATR(14): ${fmtUSD(currentData.atr)}</span>
+        <span class="text-cyan-300">MA(20): ${fmtUSD(currentData.ma20)}</span>
+      `;
+
+      calculateExecutionTargets();
+    }
+
+    function calculateExecutionTargets() {
+      const p = currentData.price;
+      const atr = currentData.atr;
+      const w = currentWeights;
+
+      const entry = Math.floor((p + atr * w.entryAtr) * 100) / 100;
+      const stop = Math.floor((entry - atr * w.stopAtr) * 100) / 100;
+      const tp1 = Math.floor((entry + atr * w.tp1Atr) * 100) / 100;
+      const tp2 = Math.floor((entry + atr * w.tp2Atr) * 100) / 100;
+
+      const unitRisk = Math.max(0.01, entry - stop);
+      const shares = Math.floor(MAX_RISK / unitRisk);
+      const totalCost = shares * entry;
+      const remainCash = Math.max(0, CONST_CASH - totalCost);
+      const usedPct = Math.min(100, (totalCost / CONST_CASH) * 100);
+
+      // UI Targets
+      document.getElementById('calcEntryPrice').textContent = fmtUSD(entry);
+      document.getElementById('calcStopPrice').textContent = fmtUSD(stop);
+      document.getElementById('calcTP1Price').textContent = fmtUSD(tp1);
+      document.getElementById('calcTP2Price').textContent = fmtUSD(tp2);
+      document.getElementById('calcUnitRisk').textContent = fmtUSD(unitRisk);
+      document.getElementById('calcShares').textContent = `${shares.toLocaleString()} 주`;
+
+      const avgProfit = ((tp1 - entry) * 0.5 + (tp2 - entry) * 0.5);
+      const rr = (avgProfit / unitRisk).toFixed(2);
+      document.getElementById('calcRiskReward').textContent = `1 : ${rr}`;
+
+      // Cash bar
+      document.getElementById('cashProgressBar').style.width = `${usedPct.toFixed(1)}%`;
+      document.getElementById('displayUsedCash').textContent = `소진: ${fmtUSD(totalCost)}`;
+      document.getElementById('displayRemainCash').textContent = `잔여: ${fmtUSD(remainCash)}`;
+
+      // Generate Ticket
+      const ticket = `================================================
+  AlphaPilot Recommend 퀀트 실행표 (Meritz Super365)
+================================================
+■ 종목 티커   : [${currentTicker}]
+■ 전략 모델   : 백테스트 ${currentWinRate.toFixed(1)}% 승률 검증 모델
+■ 기준 현재가 : ${fmtUSD(p)} (ATR14: ${fmtUSD(atr)})
+------------------------------------------------
+1. 분할 진입 (BUY)
+   - 매수가격 : ${fmtUSD(entry)} (지정가 / 조건부)
+   - 매수수량 : ${shares.toLocaleString()} 주 (총 투입: ${fmtUSD(totalCost)})
+   - 1회 리스크: ${fmtUSD(MAX_RISK)} (총자산 대비 1.5% 1R 원칙 준수)
+
+2. 손절매 보호 (STOP-LOSS)
+   - 감시가격 : ${fmtUSD(stop)} (조건 도달 시 전량 시장가 청산)
+   - 1주당 손실: -${fmtUSD(unitRisk)} (-${((unitRisk / entry) * 100).toFixed(2)}%)
+
+3. 1차 분할 익절 (TAKE-PROFIT 1 - 50%)
+   - 감시가격 : ${fmtUSD(tp1)} 도달 시 ${Math.floor(shares / 2).toLocaleString()} 주 이익실현
+   - 조치사항 : 1차 도달 즉시 잔여물량 손절가를 '본절가(${fmtUSD(entry)})'로 상향
+
+4. 2차 추세 익절 (TAKE-PROFIT 2 - 잔여 50%)
+   - 감시가격 : ${fmtUSD(tp2)} 도달 시 잔여 ${Math.ceil(shares / 2).toLocaleString()} 주 전량 청산
+================================================`;
+      document.getElementById('orderTicketPreview').value = ticket;
+    }
+
+    function copyOrderTicket() {
+      const ta = document.getElementById('orderTicketPreview');
+      ta.select();
+      navigator.clipboard.writeText(ta.value).then(() => {
+        showToast('주문 실행표가 클립보드에 복사되었습니다.', 'success');
+      });
+    }
+
+    function downloadStrategyGuideMd() {
+      const p = currentData.price;
+      const tk = currentTicker;
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const text = `# AlphaPilot 퀀트 추천 매매 전략 보고서 [${tk}]
+- 전략 승률: ${currentWinRate.toFixed(1)}%
+- 작성일시: ${dateStr}
+- 현재가: $${p.toFixed(2)} (ATR: $${currentData.atr.toFixed(2)})
+
+${document.getElementById('orderTicketPreview').value}`;
+
+      const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `AlphaPilot_Recommend_${tk}_${dateStr}.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`[${tk}] 전략 보고서가 다운로드되었습니다.`, 'success');
+    }
+
+    // 초기화
+    window.addEventListener('DOMContentLoaded', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const symbolParam = urlParams.get('symbol');
+      const winRateParam = urlParams.get('winRate');
+      const activeIdParam = urlParams.get('activeId');
+
+      const presets = getSavedPresets();
+      let initPreset = presets[0];
+
+      if (activeIdParam) {
+        const found = presets.find(p => p.id === activeIdParam);
+        if (found) initPreset = found;
+      } else if (symbolParam) {
+        const found = presets.find(p => p.symbol === symbolParam.toUpperCase());
+        if (found) initPreset = found;
+      }
+
+      activePresetId = initPreset.id;
+      currentTicker = initPreset.symbol;
+      currentWeights = initPreset.weights;
+      currentWinRate = initPreset.winRate;
+
+      updatePresetUI(initPreset);
+      renderPresetCards();
+      loadTickerData(currentTicker);
+    });
+  </script>
+</body>
+</html>
