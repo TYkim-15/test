@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AlphaPilot Pro v4.5 - Server Cross-Check Quant Engine</title>
+  <title>AlphaPilot Pro v4.5.1 - Server Cross-Check Quant Engine</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -48,7 +48,7 @@
         <div class="flex items-center gap-2">
           <i class="fa-solid fa-layer-group text-cyanNeon text-lg"></i>
           <span class="font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyanNeon to-blue-400 text-lg tracking-wider">
-            AlphaPilot Pro v4.5
+            AlphaPilot Pro v4.5.1
           </span>
           <span class="bg-cyan-950/80 text-cyan-300 border border-cyan-700/60 px-2 py-0.5 rounded text-[10px] font-bold">
             CROSS-CHECK ENGINE
@@ -264,7 +264,7 @@
 
     <!-- Footer -->
     <footer class="border-t border-terminalBorder pt-4 text-center text-[10px] text-slate-600 font-mono">
-      AlphaPilot Pro v4.5 Cross-Check Engine Enforced.<br>
+      AlphaPilot Pro v4.5.2 Cross-Check Engine Enforced.<br>
       Strict 1R Risk Protocol for Meritz Super365. Author: DBA Kim.T.Y.
     </footer>
   </main>
@@ -366,7 +366,7 @@
         initPresets();
         document.getElementById('debugConsole').innerHTML = '';
         hideDebugPanel();
-        setUiLoadingState(true, 'Netlify 서버에서 Naver + Google + OHLC 교차 검증 중...');
+        setUiLoadingState(true, 'Netlify 서버에서 Naver 우선 + Google + 실제 OHLC 검증 중...');
 
         const syncText = document.getElementById('marketSyncStatusText');
         const syncIcon = document.getElementById('syncIcon');
@@ -375,7 +375,7 @@
         document.getElementById('priceLabel').innerHTML = `현재가 <span class="text-slate-500 font-normal">(${timePrefix})</span>`;
         syncIcon.className = 'fa-solid fa-server fa-beat text-cyan-400';
         syncText.className = 'text-cyan-400 font-mono text-[11px]';
-        syncText.textContent = `Netlify 서버측 교차 검증 진행 중...`;
+        syncText.textContent = `Naver 우선 조회 → Google/OHLC 검증 진행 중...`;
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -393,22 +393,25 @@
           throw new Error(data.error || `API HTTP ${response.status}`);
         }
         (data.logs || []).forEach(x => addDebugLog(x.source || 'SERVER', x.message || ''));
+        if (data.error) addDebugLog('VALIDATION', data.error);
 
-        const q = data.quote;
+        const q = data.quote || {};
         const finalPrice = Number(q.price);
         const prevPrice = Number(q.previousClose);
         if (!Number.isFinite(finalPrice) || !Number.isFinite(prevPrice) || finalPrice <= 0 || prevPrice <= 0) {
           throw new Error('가격 데이터가 유효하지 않습니다.');
         }
 
-        const diff = Number(q.crossCheck?.differencePct ?? 0);
-        const crossPass = q.crossCheck?.status === 'PASS';
-        const isWarning = !crossPass;
+        const diff = q.crossCheck?.differencePct == null ? null : Number(q.crossCheck.differencePct);
+        const crossPass = q.crossCheck?.status === 'PASS' && data.tradeAllowed === true;
+        const partialGoogle = data.dataStatus === 'B_PARTIAL_GOOGLE';
         if (!crossPass) {
           syncIcon.className = 'fa-solid fa-triangle-exclamation text-amber-400';
           syncText.className = 'text-amber-400 font-mono text-[11px]';
-          syncText.textContent = `교차검증 WARNING (${diff.toFixed(2)}%) — 매매 허용 안 함`;
-          showToast('교차검증 조건 미충족: 매매 계산을 경고 상태로 유지합니다.', 'warn');
+          syncText.textContent = partialGoogle
+            ? 'Naver + 실제 OHLC 확보 · Google 미검증 — 매매 차단'
+            : (diff == null ? '교차검증 불완전 — 매매 차단' : `교차검증 WARNING (${diff.toFixed(2)}%) — 매매 차단`);
+          showToast('표시/기술분석은 가능하지만 교차검증 미완료로 주문은 차단됩니다.', 'warn');
         } else {
           syncIcon.className = 'fa-solid fa-shield-halved text-emerald-400';
           syncText.className = 'text-emerald-400 font-mono text-[11px]';
@@ -416,10 +419,12 @@
         }
 
         currentData.price = finalPrice;
-        currentData.change = finalPrice - prevPrice;
-        currentData.changePct = (currentData.change / prevPrice) * 100;
+        currentData.change = Number.isFinite(Number(q.change)) ? Number(q.change) : finalPrice - prevPrice;
+        currentData.changePct = Number.isFinite(Number(q.changePct))
+          ? Number(q.changePct)
+          : (currentData.change / prevPrice) * 100;
         currentData.tradeAllowed = crossPass;
-        currentData.sourceUpdatedAt = q.fetchedAt;
+        currentData.sourceUpdatedAt = data.fetchedAt || null;
         currentData.quoteDate = q.quoteDate || null;
 
         if (Array.isArray(q.history) && q.history.length >= 20) {
