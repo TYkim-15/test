@@ -38,7 +38,6 @@ async function fetchText(url, options = {}) {
   for (let attempt = 0; attempt <= RETRIES; attempt++) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
-
     try {
       const res = await fetch(url, {
         method: "GET",
@@ -74,14 +73,20 @@ function parseNaver(text) {
   const j = JSON.parse(text);
   const close = numberFrom(j.closePrice);
   const delta = numberFrom(j.compareToPreviousClosePrice);
+  const ratio = numberFrom(j.fluctuationsRatio);
   if (!(close > 0) || delta == null) throw new Error("closePrice/compareToPreviousClosePrice missing");
+
+  const tradedAt = j.localTradedAt || j.localDate || null;
   return {
     price: close,
     change: delta,
+    changePct: ratio,
     previousClose: close - delta,
     currency: "USD",
     market: "NASDAQ",
-    timestampSource: "RECEIVED_AT"
+    tradedAt,
+    marketStatus: j.marketStatus || null,
+    timestampSource: tradedAt ? "NAVER_LOCAL_TRADED_AT" : "RECEIVED_AT"
   };
 }
 
@@ -95,7 +100,7 @@ async function getNaver(symbol, logs) {
     const data = parseNaver(text);
     logs.push({
       source: "Naver",
-      message: `서버 직접 호출 성공 · ${data.price.toFixed(2)} USD / 전일대비 ${data.change.toFixed(2)} USD · attempt ${attempt}`
+      message: `서버 직접 호출 성공 · ${data.price.toFixed(2)} USD / 전일대비 ${data.change.toFixed(2)} USD / ${data.changePct == null ? "등락률 확인불가" : data.changePct.toFixed(2) + "%"} · attempt ${attempt}`
     });
     return data;
   } catch (e) {
@@ -104,18 +109,59 @@ async function getNaver(symbol, logs) {
   }
 }
 
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /*
- * Google Finance HTML is not an official machine-readable quote API.
- * v4.5.1 deliberately uses several parsing strategies and records which
- * strategy succeeded. A parser failure must never be converted into a
- * guessed price.
+ * Google Finance is not an official machine-readable quote API.
+ * Parsing order:
+ *   1) itemprop/meta structured data
+ *   2) stable-ish visible price class
+ *   3) embedded AF_initDataCallback quote array
+ *   4) data/aria/json attributes
+ *
+ * Deliberately removed the old broad "$..." context fallback. It could
+ * select an unrelated dollar value from the page and create a false quote.
  */
 function parseGooglePrice(html, symbol) {
-  const patterns = [
-    {
-      name: "CSS_CLASS",
-      re: /class=["'][^"']*\bYMlKec\b[^"']*\bfxKbKc\b[^"']*["'][^>]*>\s*([^<]+?)\s*</i
-    },
+  const safeSymbol = escapeRegExp(symbol);
+
+  const metaPrice = html.match(/<meta[^>]+itemprop=["']price["'][^>]+content=["']([^"']+)["'][^>]*>/i)
+    || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+itemprop=["']price["'][^>]*>/i);
+  if (metaPrice) {
+    const price = numberFrom(metaPrice[1]);
+    if (price > 0) return { price, parser: "META_ITEMPROP_PRICE" };
+  }
+
+  const css = html.match(/class=["'][^"']*\bYMlKec\b[^"']*\bfxKbKc\b[^"']*["'][^>]*>\s*([^<]+?)\s*</i);
+  if (css) {
+    const price = numberFrom(css[1]);
+    if (price > 0) return { price, parser: "CSS_CLASS" };
+  }
+
+  // Google embeds quote records in AF_initDataCallback blocks. A typical
+  // record contains: ["SNDK","NASDAQ"], company, ..., "USD", [price,change,pct]
+  const callbackRe = /AF_initDataCallback\(\{[\s\S]*?data:([\s\S]*?),\s*sideChannel:\s*\{[\s\S]*?\}\s*\}\);/gi;
+  let callbackMatch;
+  while ((callbackMatch = callbackRe.exec(html)) !== null) {
+    const block = callbackMatch[1];
+    if (!new RegExp(`\\["${safeSymbol}","NASDAQ"\\]`, "i").test(block)) continue;
+
+    const quoteRe = new RegExp(
+      `\\["${safeSymbol}","NASDAQ"\\][\\s\\S]{0,1800}?[,\\s]"USD"[,\\s]*\\[\\s*(-?[0-9][0-9,.]*)\\s*,\\s*(-?[0-9][0-9,.]*)\\s*,\\s*(-?[0-9][0-9,.]*)\\s*\\]`,
+      "i"
+    );
+    const m = block.match(quoteRe);
+    if (m) {
+      const price = numberFrom(m[1]);
+      const change = numberFrom(m[2]);
+      const changePct = numberFrom(m[3]);
+      if (price > 0) return { price, change, changePct, parser: "AF_INIT_DATA" };
+    }
+  }
+
+  const attrPatterns = [
     {
       name: "DATA_LAST_PRICE",
       re: /data-last-price=["']([0-9.,]+)["']/i
@@ -129,45 +175,11 @@ function parseGooglePrice(html, symbol) {
       re: /["'](?:price|lastPrice)["']\s*:\s*["']?\$?\s*([0-9][0-9,]*(?:\.[0-9]+)?)/i
     }
   ];
-
-  for (const p of patterns) {
+  for (const p of attrPatterns) {
     const m = html.match(p.re);
     if (m) {
       const price = numberFrom(m[1]);
       if (price > 0) return { price, parser: p.name };
-    }
-  }
-
-  // Text-context fallback:
-  // On the Google Finance quote page the ticker/company block precedes the
-  // current quote. We take the first USD-looking amount after that block,
-  // not later values such as market cap or after-hours quote.
-  const anchorRe = new RegExp(
-    `${symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:NASDAQ`,
-    "i"
-  );
-  const anchor = anchorRe.exec(html);
-  if (anchor) {
-    const windowText = html.slice(anchor.index, anchor.index + 5000);
-    const amounts = [...windowText.matchAll(/\$\s*([0-9][0-9,]*(?:\.[0-9]+)?)/g)];
-    for (const m of amounts) {
-      const price = numberFrom(m[1]);
-      if (price > 0 && price < 1000000) {
-        return { price, parser: "TICKER_CONTEXT_USD" };
-      }
-    }
-  }
-
-  // Last-resort company-name context. Still deterministic; never guessed.
-  const companyAnchor = /SanDisk Corp|SanDisk Corporation/i.exec(html);
-  if (companyAnchor) {
-    const windowText = html.slice(companyAnchor.index, companyAnchor.index + 3000);
-    const amounts = [...windowText.matchAll(/\$\s*([0-9][0-9,]*(?:\.[0-9]+)?)/g)];
-    for (const m of amounts) {
-      const price = numberFrom(m[1]);
-      if (price > 0 && price < 1000000) {
-        return { price, parser: "COMPANY_CONTEXT_USD" };
-      }
     }
   }
 
@@ -182,7 +194,7 @@ async function getGoogle(symbol, logs) {
       accept: "text/html,application/xhtml+xml"
     });
     const parsed = parseGooglePrice(text, symbol);
-    if (!parsed) throw new Error("현재 Google Finance HTML에서 가격 패턴을 찾지 못함");
+    if (!parsed) throw new Error("현재 Google Finance HTML에서 구조화 가격 데이터를 찾지 못함");
 
     logs.push({
       source: "Google",
@@ -190,6 +202,8 @@ async function getGoogle(symbol, logs) {
     });
     return {
       price: parsed.price,
+      change: parsed.change ?? null,
+      changePct: parsed.changePct ?? null,
       currency: "USD",
       market: "NASDAQ",
       timestampSource: "RECEIVED_AT"
@@ -215,9 +229,7 @@ async function getYahooHistory(symbol, logs) {
     const hist = [];
     for (let i = 0; i < ts.length; i++) {
       const o = q.open?.[i], h = q.high?.[i], l = q.low?.[i], c = q.close?.[i];
-      if ([o, h, l, c].every(Number.isFinite)) {
-        hist.push({ t: ts[i], o, h, l, c });
-      }
+      if ([o, h, l, c].every(Number.isFinite)) hist.push({ t: ts[i], o, h, l, c });
     }
 
     if (hist.length < 20) throw new Error(`OHLC ${hist.length}개 — 최소 20개 필요`);
@@ -232,12 +244,42 @@ async function getYahooHistory(symbol, logs) {
 
     return {
       history: hist.slice(-60),
-      quoteDate
+      quoteDate,
+      close: last.c
     };
   } catch (e) {
     logs.push({ source: "OHLC", message: `실패: ${e.message}` });
     return null;
   }
+}
+
+function buildCrossCheck(naver, google, history) {
+  if (!naver || !google) {
+    return {
+      status: "BLOCKED",
+      reason: !naver ? "NAVER_UNAVAILABLE" : "GOOGLE_UNAVAILABLE",
+      differencePct: null,
+      thresholdPct: CROSSCHECK_LIMIT_PCT,
+      naverPrice: naver?.price ?? null,
+      googlePrice: google?.price ?? null,
+      tradeAllowed: false
+    };
+  }
+
+  const differencePct =
+    Math.abs(naver.price - google.price) /
+    Math.max(Math.abs(naver.price), Math.abs(google.price)) * 100;
+
+  const status = differencePct < CROSSCHECK_LIMIT_PCT ? "PASS" : "WARNING";
+  return {
+    status,
+    differencePct,
+    thresholdPct: CROSSCHECK_LIMIT_PCT,
+    naverPrice: naver.price,
+    googlePrice: google.price,
+    yahooClose: history?.close ?? null,
+    tradeAllowed: status === "PASS"
+  };
 }
 
 export default async (req) => {
@@ -247,54 +289,55 @@ export default async (req) => {
   const logs = [];
 
   if (!ALLOWED.test(symbol)) {
-    return json({
-      ok: false,
-      error: "유효하지 않은 symbol 입니다.",
-      logs,
-      fetchedAt
-    }, 400);
+    return json({ ok: false, tradeAllowed: false, error: "유효하지 않은 symbol 입니다.", logs, fetchedAt }, 400);
   }
 
-  const [naver, google, history] = await Promise.all([
-    getNaver(symbol, logs),
+  // Naver first by design: primary quote/change-rate source.
+  const naver = await getNaver(symbol, logs);
+  const [google, history] = await Promise.all([
     getGoogle(symbol, logs),
     getYahooHistory(symbol, logs)
   ]);
 
-  // Trading safety gate:
-  // both quote sources are mandatory. A single-source result is never
-  // promoted to a tradable quote.
-  if (!naver || !google) {
+  // A usable display quote requires Naver + real OHLC. Google remains a
+  // mandatory second quote source for trade authorization.
+  if (!naver || !history) {
     return json({
       ok: false,
       tradeAllowed: false,
-      error: "Naver + Google 양쪽 교차검증을 완료하지 못했습니다. 데이터 지연으로 인한 확인 불가",
-      logs,
+      error: "기본 시세(Naver) 또는 실제 OHLC(Yahoo)를 확보하지 못했습니다. 데이터 지연으로 인한 확인 불가",
       fetchedAt,
+      logs,
       quote: {
         symbol,
         currency: "USD",
         market: "NASDAQ",
-        history: history?.history || [],
-        quoteDate: history?.quoteDate || null
+        price: naver?.price ?? null,
+        previousClose: naver?.previousClose ?? null,
+        change: naver?.change ?? null,
+        changePct: naver?.changePct ?? null,
+        quoteDate: history?.quoteDate ?? null,
+        history: history?.history ?? [],
+        historySource: history ? "Yahoo Finance Chart (server-side diagnostic)" : null,
+        crossCheck: buildCrossCheck(naver, google, history),
+        timestampSource: {
+          naver: naver?.timestampSource ?? null,
+          google: google?.timestampSource ?? null,
+          ohlc: history ? "SOURCE_DATE" : null
+        }
       }
     }, 503);
   }
 
-  const differencePct =
-    Math.abs(naver.price - google.price) /
-    Math.max(Math.abs(naver.price), Math.abs(google.price)) * 100;
-
-  const status = differencePct < CROSSCHECK_LIMIT_PCT ? "PASS" : "WARNING";
-
-  // Do not select max/min price when sources disagree.
-  // The quote is usable for display, but tradeAllowed stays false.
-  const tradeAllowed = status === "PASS";
+  const crossCheck = buildCrossCheck(naver, google, history);
+  const okForDisplay = true;
 
   return json({
-    ok: true,
-    tradeAllowed,
+    ok: okForDisplay,
+    tradeAllowed: crossCheck.tradeAllowed,
     fetchedAt,
+    dataStatus: crossCheck.status === "PASS" ? "A_FULL" : "B_PARTIAL_GOOGLE",
+    error: crossCheck.status === "PASS" ? null : "Google 교차검증 미완료 — 표시/기술분석은 가능하지만 매매 주문은 차단",
     quote: {
       symbol,
       currency: "USD",
@@ -302,26 +345,16 @@ export default async (req) => {
       price: naver.price,
       previousClose: naver.previousClose,
       change: naver.change,
-      changePct: naver.previousClose
-        ? (naver.change / naver.previousClose) * 100
-        : null,
-      quoteDate: history?.quoteDate || null,
-      history: history?.history || [],
-      historySource: history
-        ? "Yahoo Finance Chart (server-side diagnostic)"
-        : null,
-      crossCheck: {
-        status,
-        differencePct,
-        thresholdPct: CROSSCHECK_LIMIT_PCT,
-        naverPrice: naver.price,
-        googlePrice: google.price,
-        tradeAllowed
-      },
+      changePct: naver.changePct ?? (naver.previousClose ? (naver.change / naver.previousClose) * 100 : null),
+      quoteDate: history.quoteDate,
+      history: history.history,
+      historySource: "Yahoo Finance Chart (server-side diagnostic)",
+      crossCheck,
       timestampSource: {
         naver: naver.timestampSource,
-        google: google.timestampSource,
-        ohlc: history ? "SOURCE_DATE" : null
+        naverTradedAt: naver.tradedAt,
+        google: google?.timestampSource ?? null,
+        ohlc: "SOURCE_DATE"
       }
     },
     logs
