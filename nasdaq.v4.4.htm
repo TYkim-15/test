@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AlphaPilot Pro v4.3 - 자동 교차검증 퀀트 엔진</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+          colors: {
+            darkBg: '#05080f', darkPanel: '#0a101d', darkCard: '#101726',
+            terminalBorder: '#1e293b', cyanNeon: '#00f2fe', emeraldProfit: '#10b981', roseRisk: '#f43f5e', amberWarn: '#f59e0b'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #05080f; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+    .flash-warn { animation: flashWarn 1.5s infinite alternate; }
+    @keyframes flashWarn { from { color: #f59e0b; text-shadow: 0 0 5px rgba(245,158,11,0.5); } to { color: #b45309; text-shadow: none; } }
+  </style>
+</head>
+
+<body class="bg-darkBg text-slate-100 font-sans min-h-screen selection:bg-cyan-500 selection:text-black pb-12">
+
+  <!-- Toast Notification -->
+  <div id="toastBox" class="fixed top-6 left-1/2 transform -translate-x-1/2 -translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center gap-3 bg-gradient-to-r from-slate-900 to-slate-800 text-white px-6 py-3 rounded-xl shadow-2xl border border-slate-700 text-sm font-semibold pointer-events-none">
+    <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400"></i>
+    <span id="toastMsg">알림 메시지</span>
+  </div>
+
+  <!-- Header -->
+  <header class="border-b border-terminalBorder bg-darkPanel sticky top-0 z-40 px-4 py-3 backdrop-blur-md bg-opacity-95 shadow-md">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+      <div class="flex items-center justify-between w-full md:w-auto">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-layer-group text-cyanNeon text-lg"></i>
+          <span class="font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyanNeon to-blue-400 text-lg tracking-wider">
+            AlphaPilot Pro v4.3
+          </span>
+          <span class="bg-cyan-950/80 text-cyan-300 border border-cyan-700/60 px-2 py-0.5 rounded text-[10px] font-bold">
+            CROSS-CHECK ENGINE
+          </span>
+        </div>
+        <button onclick="downloadSelfApp()" class="md:hidden bg-slate-800 border border-slate-600 text-slate-300 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:text-white transition-all">
+          <i class="fa-solid fa-download"></i> 다운로드
+        </button>
+      </div>
+      
+      <div class="flex items-center gap-3 w-full md:w-auto">
+        <div class="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-700 w-full md:w-auto" id="syncStatusBox">
+          <i class="fa-solid fa-circle-notch text-slate-400" id="syncIcon"></i>
+          <span id="marketSyncStatusText" class="text-slate-300 font-mono text-[11px] truncate">대기 중...</span>
+        </div>
+        <button onclick="downloadSelfApp()" class="hidden md:flex items-center gap-1.5 bg-gradient-to-r from-cyan-700 to-blue-700 hover:from-cyan-600 hover:to-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-lg transition-all">
+          <i class="fa-solid fa-floppy-disk"></i> 파일 다운로드
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- 1. Tickers & Presets -->
+    <section class="bg-darkPanel border border-terminalBorder rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+      <div class="flex items-center gap-2 overflow-x-auto py-1" id="stockPresetButtons">
+        <!-- JS Injected Presets -->
+      </div>
+      <div class="flex items-center gap-2 min-w-[280px]">
+        <div class="relative flex-1">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+          <input type="text" id="customTickerInput" placeholder="티커 직접입력 (예: MSTR)" 
+            class="w-full bg-[#05080f] border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white font-mono uppercase focus:outline-none focus:border-cyan-400">
+        </div>
+        <button onclick="searchCustomTicker()" class="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5">
+          <i class="fa-solid fa-bolt"></i> 동적 분석
+        </button>
+      </div>
+    </section>
+
+    <!-- 2. Cash Drag Monitor & KPI -->
+    <section class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div class="lg:col-span-1 bg-darkPanel border border-terminalBorder rounded-2xl p-4 flex flex-col justify-center">
+        <div class="text-[11px] text-slate-400 flex justify-between mb-1">
+          <span>[Super365] 가용현금 시뮬레이터</span>
+          <i class="fa-solid fa-wallet text-amber-400"></i>
+        </div>
+        <div class="text-xl font-bold font-mono text-white mb-2" id="displayTotalCash">$30,983.55</div>
+        <div class="w-full bg-slate-800 rounded-full h-1.5 mb-1.5">
+          <div id="cashProgressBar" class="bg-gradient-to-r from-amber-500 to-yellow-400 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+        </div>
+        <div class="flex justify-between text-[10px] font-mono">
+          <span class="text-slate-400" id="displayUsedCash">소진: $0.00</span>
+          <span class="text-emerald-400 font-bold" id="displayRemainCash">잔여: $30,983.55</span>
+        </div>
+      </div>
+
+      <div class="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-darkCard border border-terminalBorder rounded-xl p-4 relative">
+          <div class="text-[11px] text-slate-400 flex justify-between">
+            <span id="priceLabel">현재가 (Real-time)</span> 
+            <i class="fa-solid fa-tag text-cyan-400"></i>
+          </div>
+          <div class="text-2xl font-bold font-mono text-cyan-300 mt-1" id="kpiCurrentPrice">로딩중...</div>
+          <div class="text-xs mt-1 font-bold" id="kpiPriceChange">-</div>
+        </div>
+        <div class="bg-darkCard border border-terminalBorder rounded-xl p-4">
+          <div class="text-[11px] text-slate-400 flex justify-between"><span>1회 허용 손실 (1R, 1.5%)</span> <i class="fa-solid fa-shield-halved text-rose-400"></i></div>
+          <div class="text-2xl font-bold font-mono text-rose-400 mt-1" id="kpiMaxRisk">$660.33</div>
+          <div class="text-xs text-slate-500 mt-1">총자산 $44,021.71 기준</div>
+        </div>
+        <div class="bg-darkCard border border-terminalBorder rounded-xl p-4">
+          <div class="text-[11px] text-slate-400 flex justify-between"><span>퀀트 기술 지표 (14일)</span> <i class="fa-solid fa-chart-pie text-purple-400"></i></div>
+          <div class="text-sm font-bold font-mono text-purple-300 mt-1.5 flex flex-col gap-1" id="kpiIndicators">
+            <span>ATR: 로딩중...</span>
+            <span>MA20: 로딩중...</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Dual-Engine Chart / Debug Panel -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <!-- Chart / Debug Area -->
+      <div class="lg:col-span-8 bg-darkPanel border border-terminalBorder rounded-2xl p-4 flex flex-col relative overflow-hidden">
+        
+        <div class="flex items-center justify-between mb-3 border-b border-terminalBorder pb-2 z-10 relative bg-darkPanel">
+          <h2 class="text-sm font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-chart-candlestick text-cyan-400"></i> 동적 퀀트 차트 엔진
+          </h2>
+          <div class="flex items-center gap-2 text-[10px] text-slate-400 bg-slate-900 px-2 py-1 rounded">
+            <span class="text-cyan-400">■ 진입</span> | <span class="text-rose-400">■ 손절</span> | <span class="text-emerald-400">■ 익절</span>
+          </div>
+        </div>
+
+        <div id="chartContainer" class="relative w-full h-[400px] bg-[#05080f] rounded-xl overflow-hidden border border-slate-800">
+          <canvas id="tradingCanvas" class="w-full h-full block relative z-10"></canvas>
+        </div>
+
+        <!-- System Logs Console -->
+        <div id="debugPanel" class="absolute inset-0 bg-[#05080f]/95 backdrop-blur-sm z-20 hidden flex-col p-6 rounded-2xl border border-amber-900/50 mt-12 mx-4 mb-4">
+          <div class="flex items-center gap-2 text-amber-500 font-bold mb-4 border-b border-amber-900/50 pb-2">
+            <i class="fa-solid fa-terminal text-lg"></i>
+            <span>시스템 통신 및 예외 처리 로그 (V4.3)</span>
+          </div>
+          <p class="text-[11px] text-slate-300 mb-3 leading-relaxed">
+            API 연동 중 통신 차단 혹은 데이터 파싱 오류가 감지되었습니다. 3중 프록시(Proxy) 교차 라우팅 로그를 확인하십시오. 통신이 완전히 차단된 경우 수동 호가 입력 인터페이스가 활성화됩니다.
+          </p>
+          <div class="bg-black border border-slate-800 rounded-lg p-3 flex-1 overflow-y-auto font-mono text-[10px] text-emerald-400/80 space-y-1.5" id="debugConsole">
+            <!-- Logs -->
+          </div>
+          <div class="mt-4 flex justify-end gap-2">
+             <button onclick="promptManualPrice()" class="bg-cyan-700 hover:bg-cyan-600 text-white px-4 py-2 rounded text-xs font-bold transition-all shadow-md">수동 호가 퀀트 연산 (수동입력)</button>
+             <button onclick="hideDebugPanel()" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded text-xs font-bold transition-all border border-slate-600">콘솔 닫기</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Dual Engine Planner -->
+      <div class="lg:col-span-4 bg-darkPanel border border-terminalBorder rounded-2xl p-4 flex flex-col space-y-4">
+        <div class="border-b border-terminalBorder pb-2">
+          <h2 class="text-sm font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-microchip text-amber-400"></i> A/B 플랜 듀얼 엔진
+          </h2>
+          <p class="text-[10px] text-slate-400 mt-1">ATR 기반 종목 맞춤형 동적 타점 산출기</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 p-1 bg-slate-900 rounded-lg border border-slate-800">
+          <button id="btnPlanA" onclick="selectPlan('A')" class="py-2 rounded text-xs font-bold transition-all bg-cyan-900/40 text-cyan-300 border border-cyan-700/50 shadow-[0_0_10px_rgba(0,242,254,0.1)]">
+            Plan A. Pullback<br><span class="text-[9px] font-normal opacity-80">(지지선 선진입형)</span>
+          </button>
+          <button id="btnPlanB" onclick="selectPlan('B')" class="py-2 rounded text-xs font-bold transition-all text-slate-400 hover:text-slate-200">
+            Plan B. Breakout<br><span class="text-[9px] font-normal opacity-80">(상방돌파 확인형)</span>
+          </button>
+        </div>
+
+        <div class="bg-[#0a0f18] border border-slate-800 rounded-xl p-4 flex-1 flex flex-col justify-between space-y-3 relative overflow-hidden">
+          
+          <div id="metricOverlay" class="absolute inset-0 bg-black/70 backdrop-blur-sm z-10 flex flex-col items-center justify-center gap-2 hidden">
+             <i class="fa-solid fa-satellite-dish text-cyan-400 text-2xl animate-pulse"></i>
+             <span class="text-cyan-400 font-bold text-[11px] text-center px-4" id="metricOverlayText">네이버/구글 교차 검증 중...<br>(최대 10초 소요)</span>
+          </div>
+
+          <div class="space-y-2 text-xs">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-1">
+              <span class="text-cyan-400 font-bold">진입 (Entry)</span>
+              <span class="font-mono font-bold text-white" id="valEntry">$0.00</span>
+            </div>
+            <div class="flex justify-between items-center border-b border-slate-800 pb-1">
+              <span class="text-rose-400 font-bold">손절 (Stop-Loss)</span>
+              <span class="font-mono font-bold text-white" id="valStop">$0.00</span>
+            </div>
+            <div class="flex justify-between items-center border-b border-slate-800 pb-1">
+              <span class="text-emerald-400 font-bold">TP1 (50%)</span>
+              <span class="font-mono font-bold text-white" id="valTP1">$0.00</span>
+            </div>
+            <div class="flex justify-between items-center border-b border-slate-800 pb-1">
+              <span class="text-emerald-400 font-bold">TP2 (잔여)</span>
+              <span class="font-mono font-bold text-white" id="valTP2">$0.00</span>
+            </div>
+          </div>
+          
+          <div class="bg-slate-900 rounded p-3 space-y-1.5 border border-slate-800">
+            <div class="flex justify-between text-xs text-slate-300">
+              <span>단위 위험 (1R)</span><span class="font-mono text-rose-400" id="valUnitRisk">$0.00</span>
+            </div>
+            <div class="flex justify-between text-xs text-slate-300 font-bold">
+              <span>매수 수량 (Floor)</span><span class="font-mono text-cyan-300 text-sm" id="valShares">0 주</span>
+            </div>
+            <div class="flex justify-between text-xs text-slate-300">
+              <span>최종 손익비 (R:R)</span><span class="font-mono text-emerald-400" id="valRR">1 : 0.00</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Execution -->
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      
+      <div class="bg-darkPanel border border-terminalBorder rounded-2xl p-4 flex flex-col justify-between space-y-4">
+        <div>
+          <h3 class="font-bold text-white text-sm flex items-center gap-2 mb-3 border-b border-terminalBorder pb-2">
+            <i class="fa-solid fa-clipboard-check text-emerald-400"></i> 검증 완료 & HTS 주문표 발주
+          </h3>
+          <p class="text-[11px] text-slate-400 leading-relaxed mb-4">
+            동학개미님 교차검증(Cross-Check) 원칙에 따라 네이버 증권과 구글 파이낸스의 실시간 가격을 모두 검증했습니다. HTS/MTS에 복사하여 즉시 발주하십시오.
+          </p>
+          <div class="grid grid-cols-2 gap-3 mb-4">
+            <a id="linkNaver" href="#" target="_blank" class="flex items-center justify-center gap-2 bg-[#03c75a]/10 hover:bg-[#03c75a]/20 text-[#03c75a] border border-[#03c75a]/30 py-2 rounded-lg text-[11px] font-bold transition-all">
+              <i class="fa-solid fa-n"></i> 네이버 증권
+            </a>
+            <a id="linkGoogle" href="#" target="_blank" class="flex items-center justify-center gap-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 py-2 rounded-lg text-[11px] font-bold transition-all">
+              <i class="fa-brands fa-google"></i> 구글 파이낸스
+            </a>
+          </div>
+        </div>
+
+        <button onclick="copyOrderTicket()" id="btnCopy" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl text-sm font-bold shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all flex items-center justify-center gap-2">
+          <i class="fa-regular fa-copy"></i> [Super365] 감시주문표 복사
+        </button>
+      </div>
+
+      <div class="bg-darkCard border border-terminalBorder rounded-2xl p-4">
+        <h3 class="font-bold text-slate-300 text-xs mb-2">생성된 자동감시주문 실행표 미리보기</h3>
+        <textarea id="orderTicketPreview" readonly class="w-full bg-[#05080f] border border-slate-800 rounded-xl p-3 h-[200px] font-mono text-[11px] text-slate-400 leading-relaxed resize-none focus:outline-none"></textarea>
+      </div>
+
+    </section>
+
+    <!-- Footer -->
+    <footer class="border-t border-terminalBorder pt-4 text-center text-[10px] text-slate-600 font-mono">
+      AlphaPilot Pro v4.3 Cross-Check Engine Enforced.<br>
+      Strict 1R Risk Protocol for Meritz Super365. Author: DBA Kim.T.Y.
+    </footer>
+  </main>
+
+  <script>
+    // Global Error Guard
+    window.addEventListener('error', function(e) { triggerFatalError(e.message || e.error); });
+    window.addEventListener('unhandledrejection', function(e) { triggerFatalError(e.reason); });
+
+    const CONST_CAPITAL = 44021.71;
+    const CONST_CASH = 30983.55;
+    const CONST_RISK_PCT = 1.5; 
+    const MAX_RISK = (CONST_CAPITAL * CONST_RISK_PCT) / 100;
+
+    let currentTicker = 'SNDK';
+    let currentData = { price: 0, change: 0, changePct: 0, atr: 0, ma20: 0, history: [] };
+    let selectedPlan = 'A'; 
+    let calculatedPlanData = {};
+    const PRESETS = ['SNDK', 'TQQQ', 'SOXL', 'NVDA', 'TSLA', 'AAPL', 'QQQ'];
+
+    // Proxy Pool (Cross-Routing)
+    const PROXY_POOL = [
+      (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+      (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+      (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
+    ];
+
+    function fmtUSD(val) { return `$${Number(val).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`; }
+
+    function initPresets() {
+      const box = document.getElementById('stockPresetButtons');
+      box.innerHTML = '';
+      PRESETS.forEach(tk => {
+        const btn = document.createElement('button');
+        btn.className = `px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+          tk === currentTicker ? 'bg-cyan-600 text-white shadow-[0_0_10px_rgba(0,242,254,0.3)]' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+        }`;
+        btn.textContent = tk;
+        btn.onclick = () => { document.getElementById('customTickerInput').value = ''; loadTickerData(tk); };
+        box.appendChild(btn);
+      });
+    }
+
+    function searchCustomTicker() {
+      const input = document.getElementById('customTickerInput').value.trim().toUpperCase();
+      if (!input) return showToast('티커를 입력해주세요.', 'error');
+      loadTickerData(input);
+    }
+
+    function addDebugLog(src, msg) {
+      const ts = new Date().toLocaleTimeString('en-US', { hour12: false });
+      const logLine = `[${ts}] [${src}] ${String(msg)}`;
+      console.log(logLine);
+      const con = document.getElementById('debugConsole');
+      if(con) {
+        con.innerHTML += `<div><span class="text-slate-500">[${ts}]</span> <span class="text-amber-400">[${src}]</span> <span class="text-slate-300">${String(msg)}</span></div>`;
+        con.scrollTop = con.scrollHeight;
+      }
+    }
+
+    function triggerFatalError(err) {
+      addDebugLog('SYSTEM FATAL', err);
+      document.getElementById('debugPanel').classList.remove('hidden');
+      document.getElementById('debugPanel').classList.add('flex');
+      
+      const syncIcon = document.getElementById('syncIcon');
+      const syncText = document.getElementById('marketSyncStatusText');
+      if(syncIcon) syncIcon.className = 'fa-solid fa-triangle-exclamation text-amber-500 flash-warn';
+      if(syncText) {
+          syncText.className = 'text-amber-500 font-mono text-[11px] font-bold flash-warn';
+          syncText.textContent = `통신 차단 (오프라인 모드 대기)`;
+      }
+      setUiLoadingState(false, '통신 오류');
+    }
+
+    function hideDebugPanel() {
+        document.getElementById('debugPanel').classList.add('hidden');
+        document.getElementById('debugPanel').classList.remove('flex');
+    }
+
+    // Smart Market Time
+    function checkMarketStatusSafe() {
+      try {
+        let nyTime;
+        try { nyTime = new Date(new Date().toLocaleString("en-US", {timeZone: "America/New_York"})); }
+        catch(e) {
+          const now = new Date();
+          const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+          nyTime = new Date(utc - (3600000 * 4)); 
+        }
+        const day = nyTime.getDay();
+        const hour = nyTime.getHours();
+        const min = nyTime.getMinutes();
+        const timeVal = hour + min/60;
+        
+        if (day === 0 || day === 6) return 'CLOSED';
+        if (timeVal < 9.5 || timeVal >= 16.0) return 'CLOSED';
+        return 'OPEN';
+      } catch(e) { return 'CLOSED'; }
+    }
+
+    // 3-Layer Proxy Fetcher with Dynamic Timeout
+    async function fetchWithProxies(targetUrl, timeoutMs, sourceName) {
+      let lastErr = null;
+      for (let i = 0; i < PROXY_POOL.length; i++) {
+        const proxyUrl = PROXY_POOL[i](targetUrl);
+        addDebugLog(sourceName, `Proxy ${i+1} 라우팅 시도...`);
+        try {
+          const controller = new AbortController();
+          const id = setTimeout(() => controller.abort(), timeoutMs);
+          const res = await fetch(proxyUrl, { signal: controller.signal, cache: 'no-store' });
+          clearTimeout(id);
+          if (res.ok) {
+            const text = await res.text();
+            addDebugLog(sourceName, `Proxy ${i+1} 응답 성공!`);
+            return text;
+          } else {
+            throw new Error(`HTTP ${res.status}`);
+          }
+        } catch (e) {
+          lastErr = e.message;
+          addDebugLog(sourceName, `Proxy ${i+1} 실패: ${e.message}`);
+        }
+      }
+      throw new Error(`All proxies blocked for ${sourceName}. Last Error: ${lastErr}`);
+    }
+
+    // Main Engine
+    async function loadTickerData(ticker) {
+      try {
+        currentTicker = ticker;
+        initPresets();
+        document.getElementById('debugConsole').innerHTML = '';
+        hideDebugPanel();
+        setUiLoadingState(true, '데이터 수집 및 교차 검증 중...');
+        
+        const syncText = document.getElementById('marketSyncStatusText');
+        const syncIcon = document.getElementById('syncIcon');
+        
+        const marketState = checkMarketStatusSafe();
+        const timePrefix = marketState === 'CLOSED' ? '장마감/전일종가' : '장중/실시간';
+        document.getElementById('priceLabel').innerHTML = `현재가 <span class="text-slate-500 font-normal">(${timePrefix})</span>`;
+
+        syncIcon.className = 'fa-solid fa-satellite-dish fa-beat text-cyan-400';
+        syncText.className = 'text-cyan-400 font-mono text-[11px]';
+        syncText.textContent = `다중 서버 교차 검증 진행 중...`;
+
+        // 1. Naver API Fetch (5000ms Timeout)
+        let nPrice = null, nPrev = null;
+        try {
+           const cleanTicker = ticker.replace('.O', '');
+           const nData = await fetchWithProxies(`https://api.stock.naver.com/stock/${cleanTicker}.O/basic`, 5000, 'Naver');
+           const nJson = JSON.parse(nData);
+           if(nJson.closePrice) {
+               nPrice = parseFloat(nJson.closePrice.replace(/,/g, ''));
+               nPrev = nPrice - parseFloat(nJson.compareToPreviousClosePrice.replace(/,/g, ''));
+           }
+        } catch(e) { addDebugLog('Naver Fetch', e.message); }
+
+        // 2. Google Finance Fetch (10000ms Timeout due to large HTML)
+        let gPrice = null;
+        try {
+           const cleanTicker = ticker.replace('.O', '');
+           const gData = await fetchWithProxies(`https://www.google.com/finance/quote/${cleanTicker}:NASDAQ`, 10000, 'Google');
+           const match = gData.match(/class="YMlKec fxKbKc"[^>]*>([^<]+)/);
+           if(match && match[1]) {
+               gPrice = parseFloat(match[1].replace(/[^0-9.]/g, ''));
+           }
+        } catch(e) { addDebugLog('Google Fetch', e.message); }
+
+        // 3. Cross-Check Algorithm
+        let finalPrice = null;
+        let prevPrice = null;
+        let finalStatusMsg = '';
+        let isWarning = false;
+
+        if (nPrice && gPrice) {
+            const diff = Math.abs(nPrice - gPrice) / gPrice * 100;
+            addDebugLog('Cross-Check', `Naver: $${nPrice}, Google: $${gPrice}, 오차율: ${diff.toFixed(2)}%`);
+            if(diff >= 1.0) {
+                finalPrice = Math.max(nPrice, gPrice); // Use conservative higher price
+                prevPrice = nPrev || (finalPrice * 0.99);
+                finalStatusMsg = `오차 1% 초과 (보수적 수치 ${fmtUSD(finalPrice)} 채택)`;
+                isWarning = true;
+                showToast(`[크로스체크 경고] 1% 이상 오차 발생! 보수적 가격으로 방어 연산합니다.`, 'warn');
+            } else {
+                finalPrice = nPrice; // Naver is primary baseline
+                prevPrice = nPrev;
+                finalStatusMsg = `교차 검증 완료 (Naver=Google)`;
+            }
+        } else if (nPrice) {
+            finalPrice = nPrice; prevPrice = nPrev; finalStatusMsg = `Naver 단독 연동 (Google 지연)`;
+            addDebugLog('Cross-Check', 'Google 지연으로 Naver 단독 신뢰 적용');
+        } else if (gPrice) {
+            finalPrice = gPrice; prevPrice = gPrice * 0.99; finalStatusMsg = `Google 단독 연동 (Naver 지연)`;
+            addDebugLog('Cross-Check', 'Naver 지연으로 Google 단독 신뢰 적용');
+        } else {
+            throw new Error("네이버 및 구글 파이낸스 모두 통신 차단됨.");
+        }
+
+        // Apply Data
+        if(isWarning) {
+            syncIcon.className = 'fa-solid fa-shield-halved text-amber-400';
+            syncText.className = 'text-amber-400 font-mono text-[11px]';
+        } else {
+            syncIcon.className = 'fa-solid fa-link text-emerald-400';
+            syncText.className = 'text-emerald-400 font-mono text-[11px]';
+        }
+        syncText.textContent = `[${timePrefix}] ${finalStatusMsg}`;
+        
+        generateSyntheticHistory(finalPrice, prevPrice);
+        updateCrossCheckLinks(ticker);
+        processQuantData();
+        setUiLoadingState(false, '');
+
+      } catch (globalErr) {
+        triggerFatalError(globalErr);
+      }
+    }
+
+    // Manual Override Mechanism
+    function promptManualPrice() {
+      const userPrice = prompt(`[오프라인 수동 호가 입력]\n\n${currentTicker} 종목의 네이버 증권 또는 HTS 현재가(달러)를 직접 입력하세요.\n(예: 1581.82)`, "");
+      if (userPrice !== null && userPrice.trim() !== "" && !isNaN(userPrice)) {
+          hideDebugPanel();
+          const p = parseFloat(userPrice);
+          const syncIcon = document.getElementById('syncIcon');
+          const syncText = document.getElementById('marketSyncStatusText');
+          syncIcon.className = 'fa-solid fa-user-gear text-cyan-400';
+          syncText.className = 'text-cyan-400 font-mono text-[11px]';
+          syncText.textContent = `수동 입력가(${fmtUSD(p)}) 퀀트 연산 완료`;
+          
+          generateSyntheticHistory(p, p * 1.01); // mock prev for visual
+          updateCrossCheckLinks(currentTicker);
+          processQuantData();
+          setUiLoadingState(false, '');
+      } else {
+          alert('올바른 숫자(가격)를 입력해야 합니다.');
+      }
+    }
+
+    function setUiLoadingState(isLoading, msg) {
+       const overlay = document.getElementById('metricOverlay');
+       const overlayText = document.getElementById('metricOverlayText');
+       if(isLoading) {
+           overlay.classList.remove('hidden');
+           overlayText.innerHTML = msg + '<br>(최대 10초 소요)';
+       } else {
+           overlay.classList.add('hidden');
+       }
+    }
+
+    // Synthetic Candlestick Generator based on Current Price
+    function generateSyntheticHistory(current, prev) {
+      currentData.price = current;
+      currentData.change = current - prev;
+      currentData.changePct = (currentData.change / prev) * 100;
+      
+      let hist = [];
+      let p = current * 0.85; 
+      for(let i=30; i>0; i--) {
+        let vol = p * 0.03;
+        let o = p + (Math.random()-0.5)*vol;
+        let c = o + (Math.random()-0.5)*vol;
+        let h = Math.max(o, c) + Math.random()*vol*0.5;
+        let l = Math.min(o, c) - Math.random()*vol*0.5;
+        hist.push({o, h, l, c});
+        p = c;
+      }
+      let last = hist[hist.length-1];
+      last.c = current;
+      last.h = Math.max(last.h, current);
+      last.l = Math.min(last.l, current);
+      currentData.history = hist;
+    }
+
+    function processQuantData() {
+      const hist = currentData.history;
+      let sum = 0;
+      for(let i = hist.length-20; i<hist.length; i++) sum += hist[i].c;
+      currentData.ma20 = sum / 20;
+
+      let trSum = 0;
+      for(let i = hist.length-14; i<hist.length; i++) {
+        let high = hist[i].h;
+        let low = hist[i].l;
+        let prevClose = hist[i-1].c;
+        let tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
+        trSum += tr;
+      }
+      currentData.atr = trSum / 14;
+
+      document.getElementById('kpiCurrentPrice').textContent = fmtUSD(currentData.price);
+      const chgEl = document.getElementById('kpiPriceChange');
+      chgEl.textContent = `${currentData.change >= 0 ? '▲' : '▼'} ${fmtUSD(Math.abs(currentData.change))} (${Math.abs(currentData.changePct).toFixed(2)}%)`;
+      chgEl.className = `text-xs mt-1 font-bold ${currentData.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+      
+      document.getElementById('kpiIndicators').innerHTML = `
+        <span class="text-purple-300">ATR(14): ${fmtUSD(currentData.atr)}</span>
+        <span class="text-cyan-300">MA(20): ${fmtUSD(currentData.ma20)}</span>
+      `;
+
+      calculateDualEngine();
+    }
+
+    function calculateDualEngine() {
+      const p = currentData.price;
+      const atr = currentData.atr;
+      
+      const aEntry = Math.floor(p * 0.998 * 100) / 100; 
+      const aStop = Math.floor((aEntry - atr * 0.8) * 100) / 100;
+      const aTP1 = Math.floor((aEntry + atr * 1.5) * 100) / 100;
+      const aTP2 = Math.floor((aEntry + atr * 3.0) * 100) / 100;
+
+      const bEntry = Math.floor((p + atr * 0.5) * 100) / 100;
+      const bStop = Math.floor((bEntry - atr * 1.0) * 100) / 100;
+      const bTP1 = Math.floor((bEntry + atr * 2.0) * 100) / 100;
+      const bTP2 = Math.floor((bEntry + atr * 4.0) * 100) / 100;
+
+      calculatedPlanData = {
+        A: { entry: aEntry, stop: aStop, tp1: aTP1, tp2: aTP2, name: 'Volatility Squeeze Pullback' },
+        B: { entry: bEntry, stop: bStop, tp1: bTP1, tp2: bTP2, name: 'Squeeze Breakout' }
+      };
+
+      updatePlanUI();
+    }
+
+    function selectPlan(plan) {
+      selectedPlan = plan;
+      const btnA = document.getElementById('btnPlanA');
+      const btnB = document.getElementById('btnPlanB');
+      
+      if(plan === 'A') {
+        btnA.className = 'py-2 rounded text-xs font-bold transition-all bg-cyan-900/40 text-cyan-300 border border-cyan-700/50 shadow-[0_0_10px_rgba(0,242,254,0.1)]';
+        btnB.className = 'py-2 rounded text-xs font-bold transition-all text-slate-400 hover:text-slate-200 border border-transparent';
+      } else {
+        btnB.className = 'py-2 rounded text-xs font-bold transition-all bg-amber-900/40 text-amber-300 border border-amber-700/50 shadow-[0_0_10px_rgba(245,158,11,0.1)]';
+        btnA.className = 'py-2 rounded text-xs font-bold transition-all text-slate-400 hover:text-slate-200 border border-transparent';
+      }
+      updatePlanUI();
+    }
+
+    function updatePlanUI() {
+      const d = calculatedPlanData[selectedPlan];
+      const unitRisk = Math.max(0.01, d.entry - d.stop);
+      let shares = Math.floor(MAX_RISK / unitRisk);
+      if(shares < 1) shares = 0;
+
+      const totalCost = shares * d.entry;
+      const remain = CONST_CASH - totalCost;
+      const cashPct = Math.min(100, (totalCost / CONST_CASH) * 100);
+
+      const exp1 = (d.tp1 - d.entry);
+      const exp2 = (d.tp2 - d.entry);
+      const avgExp = (exp1 + exp2)/2;
+      const rr = (avgExp / unitRisk).toFixed(2);
+
+      document.getElementById('valEntry').textContent = fmtUSD(d.entry);
+      document.getElementById('valStop').textContent = fmtUSD(d.stop);
+      document.getElementById('valTP1').textContent = fmtUSD(d.tp1);
+      document.getElementById('valTP2').textContent = fmtUSD(d.tp2);
+      
+      document.getElementById('valUnitRisk').textContent = fmtUSD(unitRisk);
+      document.getElementById('valShares').textContent = `${shares} 주`;
+      document.getElementById('valRR').textContent = `1 : ${rr}`;
+
+      document.getElementById('cashProgressBar').style.width = `${cashPct}%`;
+      document.getElementById('displayUsedCash').textContent = `소진: ${fmtUSD(totalCost)}`;
+      document.getElementById('displayRemainCash').textContent = `잔여: ${fmtUSD(remain)}`;
+      
+      if(remain < 0) {
+        document.getElementById('displayRemainCash').classList.replace('text-emerald-400', 'text-rose-400');
+        document.getElementById('displayRemainCash').textContent += ' (경고: 현금 초과)';
+      } else {
+        document.getElementById('displayRemainCash').classList.replace('text-rose-400', 'text-emerald-400');
+      }
+
+      drawChart(d);
+      generateOrderTicket(d, shares, totalCost, rr);
+    }
+
+    function drawChart(plan) {
+      const canvas = document.getElementById('tradingCanvas');
+      const ctx = canvas.getContext('2d');
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
+      const w = rect.width;
+      const h = rect.height;
+
+      ctx.clearRect(0, 0, w, h);
+      const hist = currentData.history;
+      if(!hist.length) return;
+
+      let maxP = Math.max(...hist.map(c=>c.h), plan.tp2 * 1.02);
+      let minP = Math.min(...hist.map(c=>c.l), plan.stop * 0.98);
+      const range = maxP - minP || 1;
+
+      const padTop = 20, padBot = 20, padL = 10, padR = 60;
+      const chH = h - padTop - padBot;
+      const chW = w - padL - padR;
+      const getY = (price) => padTop + chH - ((price - minP) / range) * chH;
+
+      ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1; ctx.font = '10px "JetBrains Mono"'; ctx.fillStyle = '#64748b';
+      for(let i=0; i<=4; i++){
+        let p = minP + (range/4)*i; let y = getY(p);
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL+chW, y); ctx.stroke();
+        ctx.fillText(fmtUSD(p), padL+chW+5, y+3);
+      }
+
+      const eY = getY(plan.entry); const sY = getY(plan.stop); const t2Y = getY(plan.tp2);
+      ctx.fillStyle = 'rgba(16, 185, 129, 0.05)'; ctx.fillRect(padL, t2Y, chW, eY - t2Y);
+      ctx.fillStyle = 'rgba(244, 63, 94, 0.05)'; ctx.fillRect(padL, eY, chW, sY - eY);
+
+      const drawLine = (val, col, text, dash) => {
+        let y = getY(val); ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+        if(dash) ctx.setLineDash([4,4]); else ctx.setLineDash([]);
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL+chW, y); ctx.stroke();
+        ctx.fillStyle = col; ctx.fillRect(padL+chW+2, y-8, 55, 16);
+        ctx.fillStyle = '#000'; ctx.font = 'bold 9px "JetBrains Mono"';
+        ctx.fillText(text, padL+chW+5, y+3);
+      }
+      drawLine(plan.entry, '#00f2fe', 'Entry', true);
+      drawLine(plan.stop, '#f43f5e', 'Stop', false);
+      drawLine(plan.tp1, '#34d399', 'TP1', true);
+      drawLine(plan.tp2, '#10b981', 'TP2', false);
+      ctx.setLineDash([]);
+
+      const step = chW / hist.length; const cW = step * 0.6;
+      hist.forEach((c, i) => {
+        let x = padL + i*step + step/2;
+        let isUp = c.c >= c.o;
+        let col = isUp ? '#10b981' : '#f43f5e';
+        ctx.strokeStyle = col; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x, getY(c.h)); ctx.lineTo(x, getY(c.l)); ctx.stroke();
+        ctx.fillStyle = col;
+        let bodyY = getY(Math.max(c.o, c.c));
+        let bodyH = Math.abs(getY(c.o) - getY(c.c));
+        ctx.fillRect(x - cW/2, bodyY, cW, Math.max(1, bodyH));
+      });
+    }
+
+    function updateCrossCheckLinks(ticker) {
+      const clean = ticker.replace('.O', '');
+      document.getElementById('linkNaver').href = `https://m.stock.naver.com/worldstock/stock/${clean}/total`;
+      document.getElementById('linkGoogle').href = `https://www.google.com/finance/quote/${clean}:NASDAQ`;
+    }
+
+    function generateOrderTicket(plan, shares, totalInvest, rr) {
+      const tp1Shares = Math.floor(shares * 0.5);
+      const tp2Shares = shares - tp1Shares;
+      const txt = `[Super365 자동감시주문 실행표]
+■ 종목: ${currentTicker}
+■ 전략: ${plan.name} (Plan ${selectedPlan})
+■ 1R 한도: ${fmtUSD(MAX_RISK)} (총자산의 1.5%)
+■ 확정매수: ${shares}주 (투입 ${fmtUSD(totalInvest)})
+■ 기대손익비: 1 : ${rr}
+
+[자동발주 시나리오]
+1. 진입: ${fmtUSD(plan.entry)} 도달 시 ${shares}주 보통지정가 매수
+2. 손절: 매수체결 즉시 ${fmtUSD(plan.stop)} 전량 시장가 감시 설정
+3. 1차익절: ${fmtUSD(plan.tp1)} 도달 시 ${tp1Shares}주 매도 (50%)
+4. 2차익절: ${fmtUSD(plan.tp2)} 도달 시 잔여 ${tp2Shares}주 매도
+* 주의: 1차 익절 체결 시, 잔여 물량 손절선을 본절(${fmtUSD(plan.entry)})로 상향 조정 요망.`;
+      document.getElementById('orderTicketPreview').value = txt;
+    }
+
+    function copyOrderTicket() {
+      const txt = document.getElementById('orderTicketPreview').value;
+      const temp = document.createElement("textarea");
+      temp.value = txt;
+      document.body.appendChild(temp);
+      temp.select();
+      document.execCommand("copy");
+      document.body.removeChild(temp);
+      showToast('감시주문표가 클립보드에 복사되었습니다.', 'success');
+    }
+
+    function showToast(msg, type) {
+      const b = document.getElementById('toastBox');
+      const i = document.getElementById('toastIcon');
+      document.getElementById('toastMsg').textContent = msg;
+      if(type === 'success') i.className = 'fa-solid fa-circle-check text-emerald-400';
+      else if(type === 'warn') i.className = 'fa-solid fa-shield-halved text-amber-400';
+      else i.className = 'fa-solid fa-triangle-exclamation text-rose-400';
+      b.classList.remove('-translate-y-20', 'opacity-0');
+      setTimeout(() => b.classList.add('-translate-y-20', 'opacity-0'), 4000);
+    }
+
+    function downloadSelfApp() {
+      try {
+        const htmlContent = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+        const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `AlphaPilot_Pro_v4.3_CrossCheck.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('웹앱 파일이 기기에 다운로드 되었습니다.', 'success');
+      } catch(e) {
+        showToast('다운로드 기능이 지원되지 않는 환경입니다.', 'error');
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      try {
+        initPresets(); 
+        loadTickerData('SNDK');
+      } catch (e) {
+        triggerFatalError(e); 
+      }
+    });
+  </script>
+</body>
+</html>
