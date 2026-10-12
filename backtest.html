@@ -58,7 +58,7 @@
 
       <!-- Navigation Tabs (모든 페이지 상호 이동 링크) -->
       <nav class="flex items-center gap-1 bg-[#05080f] p-1 rounded-xl border border-slate-800 self-center md:self-auto overflow-x-auto max-w-full">
-        <a href="index.html" class="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5 whitespace-nowrap">
+        <a href="javascript:void(0)" onclick="location.href='index.html?symbol='+encodeURIComponent(currentTicker)" class="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer">
           <i class="fa-solid fa-layer-group text-cyanNeon"></i>
           <span>메인 (Standard)</span>
         </a>
@@ -66,7 +66,7 @@
           <i class="fa-solid fa-flask-vial text-purple-400"></i>
           <span>백테스트 연구소</span>
         </a>
-        <a href="new.html" class="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-amber-300 transition-all flex items-center gap-1.5 whitespace-nowrap">
+        <a href="javascript:void(0)" onclick="location.href='new.html?symbol='+encodeURIComponent(currentTicker)+'&plan=PLAN_High'" class="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-amber-300 transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer">
           <i class="fa-solid fa-crown text-goldHigh"></i>
           <span>PLAN_High 실전 (NEW)</span>
         </a>
@@ -875,6 +875,7 @@
       } else {
         suitEl.textContent = `주의 (승률 ${res.winRate}% 부진)`;
         suitEl.className = 'font-bold font-mono text-rose-400';
+      }
       const btnApplyEl = document.getElementById('btnApplyPlanHighText');
       if (btnApplyEl) {
         btnApplyEl.textContent = `★ [${currentTicker}] 검증된 ${res.winRate}% 승률로 실전 반영 (NEW.html)`;
