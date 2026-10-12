@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   
   <script>
     tailwind.config = {
@@ -63,9 +64,14 @@
           </span>
         </div>
 
-        <button onclick="window.print()" class="md:hidden bg-slate-800 border border-slate-600 text-slate-200 px-2.5 py-1.5 rounded-lg text-[10px] font-bold hover:text-white transition-all flex items-center gap-1">
-          <i class="fa-solid fa-print"></i> 인쇄
-        </button>
+        <div class="flex items-center gap-1 md:hidden">
+          <button onclick="window.print()" class="bg-slate-800 border border-slate-600 text-slate-200 px-2 py-1.5 rounded-lg text-[10px] font-bold hover:text-white transition-all flex items-center gap-1">
+            <i class="fa-solid fa-file-pdf text-rose-400"></i> PDF
+          </button>
+          <button onclick="savePageAsImage()" class="bg-slate-800 border border-slate-600 text-slate-200 px-2 py-1.5 rounded-lg text-[10px] font-bold hover:text-white transition-all flex items-center gap-1">
+            <i class="fa-solid fa-file-image text-purple-400"></i> 이미지
+          </button>
+        </div>
       </div>
 
       <!-- Navigation Tabs (모든 페이지 상호 이동 링크) -->
@@ -89,13 +95,16 @@
       </nav>
       
       <!-- Sync Status & Print Button -->
-      <div class="flex items-center gap-2.5 w-full md:w-auto justify-end">
-        <div class="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-700" id="syncStatusBox">
+      <div class="flex items-center gap-2 w-full md:w-auto justify-end">
+        <div class="flex items-center gap-2 bg-slate-900 px-2.5 py-1.5 rounded-lg border border-slate-700" id="syncStatusBox">
           <i class="fa-solid fa-chart-line text-cyan-400" id="syncIcon"></i>
           <span id="backtestStatusText" class="text-slate-300 font-mono text-[11px] truncate">대기 중...</span>
         </div>
-        <button onclick="window.print()" class="hidden md:flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold shadow-md transition-all cursor-pointer">
-          <i class="fa-solid fa-print text-purple-400"></i> 페이지 출력
+        <button onclick="window.print()" class="hidden md:flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-bold shadow-md transition-all cursor-pointer">
+          <i class="fa-solid fa-file-pdf text-rose-400"></i> PDF 저장
+        </button>
+        <button onclick="savePageAsImage()" class="hidden md:flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-bold shadow-md transition-all cursor-pointer">
+          <i class="fa-solid fa-file-image text-purple-400"></i> IMAGE 저장
         </button>
       </div>
 
@@ -1179,6 +1188,28 @@
       else i.className = 'fa-solid fa-triangle-exclamation text-rose-400';
       b.classList.remove('-translate-y-20', 'opacity-0');
       setTimeout(() => b.classList.add('-translate-y-20', 'opacity-0'), 4000);
+    }
+
+    function savePageAsImage() {
+      if (typeof html2canvas === 'undefined') {
+        showToast('이미지 캡처 라이브러리를 불러오는 중입니다...', 'warn');
+        return;
+      }
+      showToast('백테스트 화면 이미지를 캡처 중입니다...', 'success');
+      html2canvas(document.body, {
+        backgroundColor: '#05080f',
+        scale: 2,
+        ignoreElements: (el) => el.id === 'toastBox' || el.classList.contains('no-print')
+      }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = `AlphaPilot_Backtest_${currentTicker}_${new Date().toISOString().slice(0, 10)}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        showToast('백테스트 화면 이미지가 저장되었습니다.', 'success');
+      }).catch(err => {
+        console.error(err);
+        showToast('이미지 저장 중 오류가 발생했습니다.', 'error');
+      });
     }
 
     // URL 파라미터 파싱
